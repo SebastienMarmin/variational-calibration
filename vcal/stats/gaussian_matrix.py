@@ -70,7 +70,7 @@ class BlockCovarianceMatrix(torch.nn.Module):
         self._dependent_row = dependent_row
         self._identic_col = identic_col
         self._dependent_col = dependent_col
-        
+        self.event_shape = torch.Size(batch_dims+(d1,d2))
         self._has_tril = dependent_row or dependent_col
         if (identic_row and dependent_row) or (identic_col and dependent_col) :
             print("erre")
@@ -78,8 +78,9 @@ class BlockCovarianceMatrix(torch.nn.Module):
 
         self._iid_row = identic_row and not dependent_row
         self._iid_col = identic_col and not dependent_col
-        id_row  = not identic_row and not dependent_row
-        id_col  = not identic_col and not dependent_col
+
+        self.id_row  = not identic_row and not dependent_row
+        self.id_col  = not identic_col and not dependent_col
         gen_row = not identic_row and dependent_row # Equals to dependent_row, treat homoscedastic case?
         gen_col = not identic_col and dependent_col
         if self._iid_row and self._iid_col:
@@ -152,7 +153,13 @@ class BlockCovarianceMatrix(torch.nn.Module):
             else:
                 raise NotImplemented("")# TODO
     #def set_tril(L):
-
+    def L_times(self,X):
+        if self._diagonal:
+            return self.parameter.squeeze(-2).unsqueeze(-1)*X
+        else:
+            if self._iid_row and self._iid_col:
+                return self.param*X
+            elif self._id_row and self._iid_col:
 
 
                 
