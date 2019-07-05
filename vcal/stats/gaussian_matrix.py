@@ -64,6 +64,100 @@ def infer_state_from_data(d,data_size):
             raise ValueError("the dimension before the last one of data must be either length 1 (diagonal case), or length d (full covariance case). Use additional front dimensions for independent batch points.")
     return diagonal, homoscedastic
 
+class BlockCovarianceMatrix(torch.nn.Module):
+    def __init__(self, d1,d2,batch_dims = (),identic_row=False,identic_col=False,dependent_row=False,dependent_col=False,initial_stddev=1.0,requires_grad=True,is_param=True):
+        self._identic_row = identic_row
+        self._dependent_row = dependent_row
+        self._identic_col = identic_col
+        self._dependent_col = dependent_col
+        
+        self._has_tril = dependent_row or dependent_col
+        if (identic_row and dependent_row) or (identic_col and dependent_col) :
+            print("erre")
+            raise NotImplementedError("Correlated components but with identic distrib are not supported.")
+
+        self._iid_row = identic_row and not dependent_row
+        self._iid_col = identic_col and not dependent_col
+        id_row  = not identic_row and not dependent_row
+        id_col  = not identic_col and not dependent_col
+        gen_row = not identic_row and dependent_row # Equals to dependent_row, treat homoscedastic case?
+        gen_col = not identic_col and dependent_col
+        if self._iid_row and self._iid_col:
+            param_size = (1)    # common stddev
+        elif id_row and id_row: #idependent but not identic
+            param_size = (d1,d2) # component wise stddev
+        elif gen_row and gen_col: # general covariance matrix 
+            param_size = (d1*d2,d1*d2)
+        elif self._iid_row and id_col:
+            param_size = (d2)
+        elif self._iid_row and gen_col:
+            param_size = (d2,d2) # common covariance matrix root
+        elif id_row and self._iid_col:
+            param_size = (d1)
+        elif id_row and gen_col:
+            param_size = (d1,d2,d2) # batch matrix root
+        elif gen_row and self._iid_col:
+            param_size = (d1,d1)
+        else :# gen_row and id_col
+            param_size = (d2,d1,d1)
+
+        data = torch.zero(*(batch_dims+param_size))
+        self.param = torch.nn.Parameter(data,requires_grad)
+        self.set_diagonal(initial_stddev)
+
+    def get_diagonal(self):
+        if self._has_tril:
+            return torch.diagonal(self.param,dim1=-2,dim2=-1)
+        else:
+            return self.param
+    def set_diagonal(value):
+        if self._has_tril:
+            self.diagonal(self.param,offset=0,dim1=-2,dim2=-1).fill_(value)
+        else:
+            self.param.fill_(value)
+    def get_variances(self):
+        if self._has_tril:
+            return (tril(self.param)**2).sum(-1)
+        else:
+            return self.param**2
+    def get_stddevs(self):
+        if self._has_tril:
+            return (tril(self.param)**2).sum(-1).sqrt()
+        else:
+            return self.param
+    def set_stddev(value):
+        if self._has_tril:
+            stddevs = self.get_stddevs()
+            self.param *= value/stddevs.unsqueeze(-1)
+        else:
+            self.param.fill_(value)
+    
+    def set_covariances(C):
+        if C._iid_row and C._iid_col:
+            self.param.zeros_()
+            self.set_diagonal(C.param.item())
+        elif C._dependent_row and C._dependent_col:
+            if self._dependent_row and self._dependent_col:
+                self.param = C.param.detach().clone()
+            elif not self._has_tril:
+                va = C.get_variances().view(self.d1,self.d2).detach().clone()
+                if not self._identic_col and not self._identic_row:
+                    self.param = va.sqrt()
+                elif not self._identic_col and self._identic_row:
+                    self.param = va.mean(-2).sqrt()
+                elif self._identic_col and not self._identic_row:
+                    self.param = va.mean(-1).sqrt()
+                else:
+                    self.param = va.mean(-2).mean(-1).sqrt()
+            else:
+                raise NotImplemented("")# TODO
+    #def set_tril(L):
+
+
+
+                
+        #if C._iid_row and C._iid_col:
+
 class CovarianceMatrix(torch.nn.Module):
     def __init__(self, d=None,data=None,initial_stddev=1.0,requires_grad=True,is_param=True):
         if d is None:
