@@ -79,7 +79,6 @@ class IBLMInitializer(BaseInitializer):
                 # Run a forward pass (the hook will save the input to the layer)
                 self.model(X)
                 new_in_data = layer.input_to_layer.mean(0)
-            print("lol")
             layer.set_to_posterior(new_in_data,Y,self.noise_var)
         hook_hadler.remove()
 

@@ -544,3 +544,6 @@ class GaussianVector(GaussianMatrix):
     @tril.setter
     def tril(self,X):
         self.row_cov.tril = X
+
+    def log_prob(self, value):
+        return super().log_prob(value.unsqueeze(-1)).squeeze(-1)

@@ -6,3 +6,5 @@ from .exception import VcalNaNLossException
 from .exception import VcalTimeOutException
 from .batch_loader import MultiSpaceBatchLoader, SingleSpaceBatchLoader
 from .gentxt import gentxt
+from .designs_of_experiments import lhs_maximin, factorial
+from .distance_matrix import dist_matrix_sq

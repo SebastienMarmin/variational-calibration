@@ -96,7 +96,7 @@ class FourierFeaturesGaussianProcess(FeaturesGaussianProcess):
         self.Omega.data = self.cov_structure.sample_spectrum(self.nfeatures)
 
     def activation(self,X):
-        SP = matmul((X/self.pf.i(self.lengthscales)),self.Omega)
+        SP = matmul(X/self.lengthscales,self.Omega)
         return self.Phi_fun(SP)/self.sqrt_nfeatures
     
     def fix_hyperparameters(self):

@@ -1,9 +1,9 @@
 import torch
 
-def dist_matrix_sq(self, X1, X2=None, stability=False):
+def dist_matrix_sq(X1, X2=None, stability=False):
     x1 = X1
     if X2 is None:
-        if self.stability:
+        if stability:
             mu = torch.mean(x1, 0)
             x1.sub_(mu) #inline; subtracting the mean for stability
         D = -2 * torch.mm(x1, x1.t())
@@ -12,7 +12,7 @@ def dist_matrix_sq(self, X1, X2=None, stability=False):
         D.add_(sum_x1x1.t())
     else:
         x2 = X2
-        if self.stability:
+        if stability:
             n = x1.shape[0]
             m = x2.shape[0]
             mu = (m/(n+m))*torch.mean(x2, 0) + (n/(n+m))*torch.mean(x1, 0)

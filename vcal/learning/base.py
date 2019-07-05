@@ -60,7 +60,7 @@ class Trainer(object):
             model_params = optimizable_params - likelihood_params
 
         lr_calib = kwargs.pop('lr_calib') if 'lr_calib' in kwargs else  optimizer_config['lr']
-        lr_likelihood = kwargs.pop('lr_likelihood') if 'lr_likelihood' in kwargs else  optimizer_config['lr']/3.
+        lr_likelihood = kwargs.pop('lr_likelihood') if 'lr_likelihood' in kwargs else  optimizer_config['lr']/5.
         self.optimizer = available_optimizers[optimizer]([
                 {'params': list(model_params)},
                 {'params': list(likelihood_params), 'lr': lr_likelihood},

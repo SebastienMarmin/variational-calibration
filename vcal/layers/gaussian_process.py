@@ -43,9 +43,9 @@ class GaussianProcess(BaseLayer, metaclass=abc.ABCMeta):
         self._stddevs.data = x
 
     def fix_hyperparameters(self):
-        self.lengthscales.requires_grad = False
+        self._lengthscales.requires_grad = False
         self.prior_means.optimize(False)
-        self.prior_variances.requires_grad = False
+        self._stddevs.requires_grad = False
     @abc.abstractmethod
     def reset_parameters(self):
         NotImplementedError("Subclass of CovarianceStructure should implement covariance().")
