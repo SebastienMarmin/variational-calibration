@@ -657,15 +657,12 @@ class GaussianMatrix(torch.nn.Module):
             qT.scale = q.scale
         return qT
 
-    """ 
+
     def entropy(self):
-        half_log_det = self._unbroadcasted_scale_tril.diagonal(dim1=-2, dim2=-1).log().sum(-1)
-        H = 0.5 * self._event_shape[0] * (1.0 + math.log(2 * math.pi)) + half_log_det
-        if len(self._batch_shape) == 0:
-            return H
-        else:
-            return H.expand(self._batch_shape)
- """
+        log_det = self.log_det
+        H = 0.5 * self.nrow*self.col * (1.0 + log2) + .5*log_det
+        return H
+
 
 
 class GaussianVector(GaussianMatrix):
