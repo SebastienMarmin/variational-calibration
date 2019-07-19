@@ -2,9 +2,7 @@ import math
 
 import torch
 from torch import tril, matmul
-from .import constraints
-from .distribution import Distribution
-from .utils import _standard_normal, lazy_property
+from .utilities import _standard_normal
 
 from numpy import log as np_log, pi as np_pi
 log2pi = np_log(2*np_pi)

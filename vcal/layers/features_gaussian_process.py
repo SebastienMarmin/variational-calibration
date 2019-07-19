@@ -5,7 +5,7 @@ from torch import matmul
 from torch.distributions import kl_divergence
 from . import GaussianProcess
 from ..utilities import regress_linear as regress
-from vcal.stats import Normal,  GaussianMatrix, CovarianceMatrix
+from vcal.stats import GaussianMatrix
 import vcal.stats.kl
 
 
