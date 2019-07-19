@@ -71,7 +71,7 @@ derivative would be as follows::
     loss.backward()
 """
 from .probability_law import ProbabilityLaw
-from .gaussian_matrix import GaussianMatrix, CovarianceMatrix, GaussianVector
+from .gaussian_matrix import GaussianMatrix, CovarianceMatrix, GaussianVector, blockfrob, L1_inv_L2_frob
 
 from .bernoulli import Bernoulli
 from .beta import Beta
