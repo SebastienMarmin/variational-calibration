@@ -1,69 +1,68 @@
-import math
-
 import torch
 from torch import tril, matmul
 from .utilities import _standard_normal
 
-from numpy import log as np_log, pi as np_pi
 log2pi = 1.83787706640934533908193770912475883960723876953125
 
-def L1_inv_L2_frob(W1,W2):
+
+def L1_inv_L2_frob(W1, W2):
     B = W2.scale if W2.all_independent else tril(W2.scale)
     d1 = W1.nrow
-    d2 = W1.ncol# TODO check W2 ?
+    d2 = W1.ncol  # TODO check W2 ?
     if W2.all_independent:
         batch_le = len(W1.batch_shape)
-        m = blockfrob(W1,B,inv=True,diag=True,X_event_shape=True)
-        return m.sum(tuple(range(batch_le,len(m.shape))))
+        m = blockfrob(W1, B, inv=True, diag=True, X_event_shape=True)
+        return m.sum(tuple(range(batch_le, len(m.shape))))
     elif W2.all_dependent:
-        return blockfrob(W1,B,inv=True,diag=False,X_event_shape=False).sum(-1)
+        return blockfrob(W1, B, inv=True, diag=False, X_event_shape=False).sum(-1)
     elif W1.all_dependent:
-        return blockfrob(W1,W2.full_tril,inv=True,diag=False,X_event_shape=False).sum(-1)
+        return blockfrob(W1, W2.full_tril, inv=True, diag=False, X_event_shape=False).sum(-1)
     elif W1.all_independent:
-        A = W1.scale #if W1.all_independent else tril(W1.scale)
-        if A.shape[-1]==1 and A.shape[-2]==1:
-            sumBs = blockfrob(W2,torch.ones(1,1,device=B.device,dtype=B.dtype),inv=False,diag=True,X_event_shape=False)
+        A = W1.scale  # if W1.all_independent else tril(W1.scale)
+        if A.shape[-1] == 1 and A.shape[-2] == 1:
+            sumBs = blockfrob(W2, torch.ones(1, 1, device=B.device, dtype=B.dtype), inv=False, diag=True, X_event_shape=False)
             batch_le = len(W1.batch_shape)
-            sumB = sumBs.sum(tuple(range(batch_le,len(sumBs.shape))))
-            # to avoid adding multiple time the same quantity in cases of same variances or same covariances
+            sumB = sumBs.sum(tuple(range(batch_le, len(sumBs.shape))))
+            # to avoid adding multiple time the same quantity in cases of same
+            # variances or same covariances
             A2 = A.squeeze(-1).squeeze(-1)**2
             return sumB/A2
-        Ar = A.expand(*A.shape[:-2],d1,d2).contiguous()
+        Ar = A.expand(*A.shape[:-2], d1, d2).contiguous()
         if W2.only_col_dep:
             Au = Ar.unsqueeze(-1)
-            sumDim = (-3,-2,-1)
-        else :#B_only_row_dep:
-            Au = Ar.transpose(-2,-1).unsqueeze(-1)
-            sumDim = (-3,-2,-1)
+            sumDim = (-3, -2, -1)
+        else:  # B_only_row_dep:
+            Au = Ar.transpose(-2, -1).unsqueeze(-1)
+            sumDim = (-3, -2, -1)
         AB = B/Au
-        #return block_mm(W2,1/A,inv=False,frob=True,diag=True,X_event_shape=True).sum((-1,-2))
     elif W1.only_col_dep:
-        A = W1.scale #if W1.all_independent else tril(W1.scale)
+        A = W1.scale  # if W1.all_independent else tril(W1.scale)
         if W2.only_col_dep:
-            AB = torch.triangular_solve(B,tril(A),upper=False,transpose=False)[0]
-            sumDim = (-3,-2,-1)
-        else:# B_only_row_dep:
+            AB = torch.triangular_solve(B, tril(A), upper=False, transpose=False)[0]
+            sumDim = (-3, -2, -1)
+        else:  # B_only_row_dep:
             Ai = W1.get_tril_inverse()
             Au = Ai.unsqueeze(-1)
-            Bu = B.transpose(-3,-2).unsqueeze(-3)
+            Bu = B.transpose(-3, -2).unsqueeze(-3)
             AB = Bu*Au
-            sumDim = (-4,-3,-2,-1)
-    else:# W1.only_row_dep:
+            sumDim = (-4, -3, -2, -1)
+    else:  # W1.only_row_dep:
         if W2.only_col_dep:
             Ai = W1.get_tril_inverse()
             Au = Ai.unsqueeze(-1)
-            Bu = B.transpose(-3,-2).unsqueeze(-3)
+            Bu = B.transpose(-3, -2).unsqueeze(-3)
             AB = Bu*Au
-            sumDim = (-4,-3,-2,-1)
-        else:# B_only_row_dep:
-            A = W1.scale #if W1.all_independent else tril(W1.scale)
-            AB = torch.triangular_solve(B,tril(A),upper=False,transpose=False)[0]
-            sumDim = (-3,-2,-1)
+            sumDim = (-4, -3, -2, -1)
+        else:  # B_only_row_dep:
+            A = W1.scale # if W1.all_independent else tril(W1.scale)
+            AB = torch.triangular_solve(B, tril(A), upper=False, transpose=False)[0]
+            sumDim = (-3, -2, -1)
     return (AB**2).sum(sumDim)
 
-def tril_op(L,X,inv,frob,diag):
+
+def tril_op(L, X, inv, frob, diag):
     Ltril = tril(L)
-    if X.shape[-2]==1:
+    if X.shape[-2] == 1:
         if not inv:
             if diag:
                 LX = (Ltril*X)
@@ -79,17 +78,17 @@ def tril_op(L,X,inv,frob,diag):
                     return sumL*X
         else:
             if diag:
-                X_exp = torch.diag_embed(X.expand(*X.shape[:-2],1,L.size(-1)).squeeze(-2), offset=0, dim1=-2, dim2=-1)
+                X_exp = torch.diag_embed(X.expand(*X.shape[:-2], 1, L.size(-1)).squeeze(-2), offset=0, dim1=-2, dim2=-1)
             else:
-                X_exp = X.expand(*X.shape[:-2],L.size(-1),X.size(-1))
+                X_exp = X.expand(*X.shape[:-2], L.size(-1), X.size(-1))
     else:
         X_exp = X
     if inv:
-        LX = torch.triangular_solve(X_exp,Ltril,upper=False,transpose=False)[0]
+        LX = torch.triangular_solve(X_exp, Ltril, upper=False, transpose=False)[0]
     else:
         if diag:
-            print(("error! with diag, dim[-2] must be one"))#TODO
-        LX = matmul(Ltril,X_exp)
+            print(("error! with diag, dim[-2] must be one"))  # TODO
+        LX = matmul(Ltril, X_exp)
     if frob:
         return (LX**2).sum(-2)
     else:
@@ -99,94 +98,93 @@ def tril_op(L,X,inv,frob,diag):
 def torch_distrib(q):
     d1 = q.nrow
     d2 = q.ncol
-    m = q.loc.expand(d1,d2).view(-1,1).squeeze(-1)
+    m = q.loc.expand(d1, d2).view(-1, 1).squeeze(-1)
     L = q.full_tril
-    return torch.distributions.MultivariateNormal(m,scale_tril=L)
+    return torch.distributions.MultivariateNormal(m, scale_tril=L)
 
-def blockfrob(W,X,inv=False,diag=False,X_event_shape=True):
-    A = W.scale # if W.all_independent else tril(W.scale)
+
+def blockfrob(W, X, inv=False, diag=False, X_event_shape=True):
+    A = W.scale  # if W.all_independent else tril(W.scale)
     d1 = W.nrow
     d2 = W.ncol
     all_independent = W.all_independent
     all_dependent = W.all_dependent
-    only_col_dep    = W.only_col_dep
-    only_row_dep    = W.only_row_dep
+    only_row_dep = W.only_row_dep
     if diag and X_event_shape and not all_independent:
-        if X.shape[-1]!=1 or X.shape[-2]!=1:
-            Xex = X.expand(*X.shape[:-2],d1,d2)
+        if X.shape[-1] != 1 or X.shape[-2] != 1:
+            Xex = X.expand(*X.shape[:-2], d1, d2)
             if all_dependent:
-                B = Xex.contiguous().view(*X.shape[:-2],1,d1*d2)
+                B = Xex.contiguous().view(*X.shape[:-2], 1, d1*d2)
             else:
                 B = Xex
         else:
             B = X
-        B_event_shape=False
+        B_event_shape = False
     else:
         B = X
-        B_event_shape=X_event_shape
+        B_event_shape = X_event_shape
     if all_independent:
         if B_event_shape:
             if not diag:
-                fro_fac = d1*d2/(max(A.shape[-1],B.shape[-1])*max(A.shape[-2],B.shape[-2]))
-                if (A.shape[-1]==1 and B.shape[-2]==1) or (B.shape[-1]==1 and A.shape[-2]==1):
-                    #fro_fac = d1*d2/(A.shape[-1]*A.shape[-2]*B.shape[-1]*B.shape[-2])
-                    Asum = (1/A**2).sum((-1,-2)) if inv else (A**2).sum((-1,-2))
+                fro_fac = d1*d2/(max(A.shape[-1], B.shape[-1])*max(A.shape[-2], B.shape[-2]))
+                if (A.shape[-1] == 1 and B.shape[-2] == 1) or (B.shape[-1] == 1 and A.shape[-2] == 1):
+                    Asum = (1/A**2).sum((-1, -2)) if inv else (A**2).sum((-1, -2))
                     Asum_u = Asum.unsqueeze(-1).unsqueeze(-1)
-                    return (Asum_u*(B**2).sum((-1,-2)).unsqueeze(-1).unsqueeze(-1)*fro_fac).squeeze(-1)
+                    return (Asum_u*(B**2).sum((-1, -2)).unsqueeze(-1).unsqueeze(-1)*fro_fac).squeeze(-1)
                 else:
                     AB = B/A if inv else A*B
-                    return (AB**2).sum((-2,-1)).unsqueeze(-1)*fro_fac
+                    return (AB**2).sum((-2, -1)).unsqueeze(-1)*fro_fac
             else:
                 ABs = (B/A if inv else A*B)
                 ABs2 = ABs**2
-                AB = ABs2.expand(*ABs.shape[:-2],d1,d2)
+                AB = ABs2.expand(*ABs.shape[:-2], d1, d2)
         else:
-            if not diag and B.shape[-2]==1:
-                Asum = (1/A**2).sum((-1,-2)).unsqueeze(-1) if inv else (A**2).sum((-1,-2)).unsqueeze(-1)
+            if not diag and B.shape[-2] == 1:
+                Asum = (1/A**2).sum((-1, -2)).unsqueeze(-1) if inv else (A**2).sum((-1, -2)).unsqueeze(-1)
                 return Asum*(B**2).sum(-2)*W._fro_fac
             else:
-                if not diag and A.shape[-1]==1 and A.shape[-2]==1:
+                if not diag and A.shape[-1] == 1 and A.shape[-2] == 1:
                     A2 = 1/A**2 if inv else A**2
                     As = A2.squeeze(-1)
                     return As*(B**2).sum(-2)
                 if diag:
-                    Ar = A.expand(*A.shape[:-2],d1,d2).contiguous().view(*A.shape[:-2],1,-1)
+                    Ar = A.expand(*A.shape[:-2], d1, d2).contiguous().view(*A.shape[:-2], 1, -1)
                 else:
-                    Ar = A.expand(*A.shape[:-2],d1,d2).contiguous().view(*A.shape[:-2],-1,1)
+                    Ar = A.expand(*A.shape[:-2], d1, d2).contiguous().view(*A.shape[:-2], -1, 1)
                 AB = B/Ar if inv else Ar*B
                 return (AB**2).sum(-2)
         return AB
     elif all_dependent:
-        if B_event_shape and not (B.size(-1)==1 and B.size(-2)==1):
-            Brshaped = B.expand(*B.shape[:-2],d1,d2).contiguous().view(*B.shape[:-2],d1*d2,1)
+        if B_event_shape and not (B.size(-1) == 1 and B.size(-2) == 1):
+            Brshaped = B.expand(*B.shape[:-2], d1, d2).contiguous().view(*B.shape[:-2], d1*d2,1)
         else:
             Brshaped = B
-        return tril_op(A,Brshaped,inv,True,diag)
+        return tril_op(A, Brshaped, inv, True, diag)
     else:
         if diag:
-            if B.size(-1)==1:
+            if B.size(-1) == 1:
                 di = d1 if only_row_dep else d2
-                Bu = B.unsqueeze(-2).expand(*B.shape[:-2],1,1,di)
+                Bu = B.unsqueeze(-2).expand(*B.shape[:-2], 1, 1, di)
             else:
-                Bav = B.view(*B.shape[:-2],d1,1,d2)
-                Bu = Bav.transpose(-1,-3) if only_row_dep else Bav
-            comp = tril_op(A,Bu,inv,False,diag)
+                Bav = B.view(*B.shape[:-2], d1, 1, d2)
+                Bu = Bav.transpose(-1, -3) if only_row_dep else Bav
+            comp = tril_op(A, Bu, inv, False, diag)
             if only_row_dep:
-                compt = comp.transpose(-2,-1).contiguous().view(*comp.shape[:-3],d2,d1,d1) 
+                compt = comp.transpose(-2, -1).contiguous().view(*comp.shape[:-3], d2, d1, d1)
             else:
-                compt = comp.contiguous().view(*comp.shape[:-3],d1,d2,d2)
-            return (compt**2).sum(-1).transpose(-2,-1) if only_row_dep else (compt**2).sum(-2)
+                compt = comp.contiguous().view(*comp.shape[:-3], d1, d2, d2)
+            return (compt**2).sum(-1).transpose(-2, -1) if only_row_dep else (compt**2).sum(-2)
         else:
             if B_event_shape:
-                Bt = B.transpose(-1,-2) if only_row_dep else B
+                Bt = B.transpose(-1, -2) if only_row_dep else B
                 Bu = Bt.unsqueeze(-1)
             else:
-                if B.size(-2)==1:
+                if B.size(-2) == 1:
                     Bu = B.unsqueeze(-3)
                 else:
-                    Bav = B.view(*B.shape[:-2],d1,d2,-1)
-                    Bu = Bav.transpose(-3,-2) if only_row_dep else Bav
-            comp = tril_op(A,Bu,inv,True,diag)
+                    Bav = B.view(*B.shape[:-2], d1, d2, -1)
+                    Bu = Bav.transpose(-3, -2) if only_row_dep else Bav
+            comp = tril_op(A, Bu, inv, True, diag)
             return comp.sum(-2)*W._fro_fac
 
 
@@ -197,7 +195,6 @@ def blockmatmul(W,X,inv=False,X_event_shape=True):
     all_independent = W.all_independent
     all_dependent = W.all_dependent
     only_col_dep    = W.only_col_dep
-    only_row_dep    = W.only_row_dep
     B = X
     B_event_shape=X_event_shape
     if all_independent:
@@ -221,10 +218,10 @@ def blockmatmul(W,X,inv=False,X_event_shape=True):
             return AB
     else:
         if B_event_shape:
-            Bt = B.transpose(-1,-2) if only_row_dep else B
+            Bt = B.transpose(-1,-2) if W.only_row_dep else B
             Bu = Bt.unsqueeze(-1)
             comp = tril_op(A,Bu,inv,False,False).squeeze(-1)
-            compt = comp.transpose(-1,-2) if only_row_dep else comp
+            compt = comp.transpose(-1,-2) if W.only_row_dep else comp
             return compt#.contiguous().view(*compt.shape[:-2],d1,d2)
         else:
             if B.size(-2)==1:
@@ -565,7 +562,6 @@ class GaussianMatrix(torch.nn.Module):
             U = XLrsh.sum(-3) # cov root of XW
             eps = _standard_normal(sample_shape+torch.Size(Y_mean.shape[:-2]+(X.size(-2),d1*d2,1)), dtype=self.loc.dtype, device=self.loc.device)
             Y_centered = matmul(U,eps).squeeze(-1)
-            #Y_centered = Y_c_vect.view(Y_mean.size())
         elif dep_rows and not dep_cols:
             if not self.all_dependent:
                 Y_V = (matmul(X.unsqueeze(-2).unsqueeze(-2),tril(self.scale).unsqueeze(-4)).squeeze(-2)**2).sum(-1)
@@ -595,6 +591,9 @@ class GaussianMatrix(torch.nn.Module):
     @property
     def log_det(self):
         di = self.get_diagonal(formated=False).abs().log()
+        # because scale may be unbroadcasted (constant variance or contant cov),
+        # instead of computing on scale.expand() we multiply the result with
+        # the corresponding integer factor.
         if self.all_independent:
             f1 = self.nrow if self.scale.size(-2)== 1 else 1
             f2 = self.ncol if self.scale.size(-1)== 1 else 1
@@ -657,8 +656,7 @@ class GaussianMatrix(torch.nn.Module):
             qT.scale = q.scale
         return qT
 
-
-    def entropy(self):
+    def entropy(self): # TODO test
         log_det = self.log_det
         H = 0.5 * self.nrow*self.col * (1.0 + log2) + .5*log_det
         return H
