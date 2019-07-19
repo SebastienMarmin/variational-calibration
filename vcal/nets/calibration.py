@@ -2,7 +2,7 @@ from abc import ABCMeta, abstractmethod
 import torch
 
 from .base import BaseNet
-from ..stats import kl_divergence
+from torch.distributions import kl_divergence
 
 
 class CalibrationNet(BaseNet,metaclass=ABCMeta):
@@ -80,7 +80,7 @@ class CalibrationNet(BaseNet,metaclass=ABCMeta):
                 X = X_raw.expand(torch.Size([nmc])+X_raw.size())
             else:
                 X = X_raw
-            theta = self.calib_posterior.rsample([nmc])
+            theta = self.calib_posterior.rsample(torch.Size([nmc]))
             theta_ex = theta.unsqueeze(-2).expand([nmc,X.size(1),theta.size(-1)]) # batchpoint dim extention
             Y = self.phenomenon(  X   ,theta_ex) # expand because one replication of Y is always evaluated at one 
         if X_star_raw is None or T_raw is None:

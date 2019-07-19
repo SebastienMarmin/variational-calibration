@@ -25,7 +25,7 @@ class RegressionNet(BaseNet):
     def __init__(self, *args,**kwargs):
         super(RegressionNet, self).__init__(*args,**kwargs)
         self.likelihood = GaussianMatrix(1,1,centered=True)
-        self.likelihood.col_cov.parameter.requires_grad = False ## more user friendly here
+        self.likelihood.optimize(False) ## more user friendly here
 
     def compute_error(self, Y_pred: torch.Tensor, Y_true: torch.Tensor,n_over_m) -> torch.Tensor:
         return torch.sqrt(torch.mean(torch.pow((Y_true - Y_pred), 2))/n_over_m).unsqueeze(0)

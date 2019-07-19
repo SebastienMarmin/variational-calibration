@@ -264,7 +264,7 @@ if __name__ == '__main__':
     test_data_loader  = MultiSpaceBatchLoader(test_obs_loader,  test_run_loader)
 
     nmc_train = 5
-    nmc_test  = 200
+    nmc_test  = 40
     nfeatures_run = 50
     nfeatures_obs = 50
     noise_std_run = 0.01
@@ -281,10 +281,8 @@ if __name__ == '__main__':
     computer_model.likelihood.row_stddev = noise_std_run
     discrepancy.likelihood.row_stddev    = noise_std_obs
 
-    calib_prior = GaussianVector(calib_dim,homoscedastic=True,const_mean=True)
-    calib_prior.loc.data=torch.ones(1,1)*0.5
-    calib_prior.row_cov.stddev=1
-    calib_prior.optimize(False)
+    calib_prior = GaussianVector(calib_dim,iid=True,constant_mean=.5,parameter=False)
+    calib_prior.stddev=1
     calib_posterior = GaussianVector(calib_dim)
     #calib_posterior.set_to(calib_prior)
     #calib_posterior.row_cov.parameter.detach()

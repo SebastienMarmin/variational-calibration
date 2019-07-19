@@ -734,7 +734,7 @@ def frobe_Norm(B,d1,d2,all_independent,only_col_dep,only_row_dep):
 
 
 class GaussianMatrix(torch.nn.Module):
-    def __init__(self,*dim,dependent_rows = False,dependent_cols = False,same_row_cov=False,same_col_cov=False,constant_mean=None,centered = False ,stddev=1.0):
+    def __init__(self,*dim,dependent_rows = False,dependent_cols = False,same_row_cov=False,same_col_cov=False,constant_mean=None,centered = False ,stddev=1.0,parameter=True):
         super(GaussianMatrix, self).__init__()
         # delfault is independent rows and columns (but not equally distributed)
         self.nrow = dim[-2]
@@ -743,8 +743,6 @@ class GaussianMatrix(torch.nn.Module):
         self.event_shape = torch.Size(dim)
         self.dependent_rows = dependent_rows
         self.dependent_cols = dependent_cols
-        self.same_row_cov = same_row_cov
-        self.same_col_cov = same_col_cov
         self.centered = centered
         #super(GaussianMatrix, self).__init__(batch_shape, dim[-2:], validate_args=None)
 
@@ -792,22 +790,22 @@ class GaussianMatrix(torch.nn.Module):
                     scale_dims = (self.nrow,self.ncol,self.ncol)
                     self._fro_fac = 1
             else:
-                if self.same_row_cov:
+                if same_row_cov:
                     scale_dims = (1,self.nrow,self.nrow)
                     self._fro_fac = self.ncol
                 else:
                     scale_dims = (self.ncol,self.nrow,self.nrow)
                     self._fro_fac = 1
         else:
-            if self.same_row_cov:
-                if self.same_col_cov:
+            if same_row_cov:
+                if same_col_cov:
                     scale_dims = (1,1)
                     self._fro_fac = self.ncol*self.nrow
                 else:
                     scale_dims = (1,self.ncol)
                     self._fro_fac = self.nrow
             else:
-                if self.same_col_cov:
+                if same_col_cov:
                     scale_dims = (self.nrow,1)
                     self._fro_fac = self.ncol
                 else:
@@ -817,6 +815,11 @@ class GaussianMatrix(torch.nn.Module):
         self.scale = torch.zeros(*(self.batch_shape+scale_dims))
         self.set_diagonal(stddev)
         self.scale_dims = (-(i+1) for i in range(len(scale_dims)))
+
+        if parameter:
+            if not self.centered:
+                self.loc = torch.nn.Parameter(self.loc.detach())
+            self.scale = torch.nn.Parameter(self.scale.detach())
 
     """
     def expand(self, batch_shape, _instance=None):
@@ -855,6 +858,32 @@ class GaussianMatrix(torch.nn.Module):
         else:
             L = torch.tril(self.scale)
         return L
+    @full_tril.setter
+    def full_tril(self,L):
+        d1 = self.nrow
+        d2 = self.ncol
+        batch_shape = self.batch_shape
+        if self.all_independent:# keep only the variances # TODO warning
+            V = (tril(L)**2).sum(-1).expand(*batch_shape,d1*d2).view(*batch_shape,d1,d2)
+            scale = V
+        elif self.only_col_dep:
+            if d1>1:# keep only the col cov # TODO warning
+                print("warnings TODO")
+            else:
+                scale = L.unsqueeze(-3).expand(*batch_shape,1,d2,d2)
+        elif self.only_row_dep:
+            if d2>1:# keep only the col cov # TODO warning
+                print("warnings TODO")
+            else:
+                scale = L.unsqueeze(-3).expand(*batch_shape,1,d1,d1)
+        else:
+            scale = L.expand(*batch_shape,d1*d2,d1*d2)
+        try:
+            self.scale = scale
+        except TypeError:
+            self.scale = torch.nn.Parameter(scale)
+
+
 
     def to_torch_distrib(self):# TODO handle low rank
         d1 = self.nrow
@@ -910,7 +939,22 @@ class GaussianMatrix(torch.nn.Module):
     @property
     def variances(self):
         return self.get_variances(expand_rows=True,expand_cols=True)
-
+    @property
+    def covariance_matrix(self):
+        L = self.full_tril
+        return matmul(L,L.transpose(-1,-2))
+    @covariance_matrix.setter
+    def covariance_matrix(self,X):
+        n = X.size(-2)
+        m = X.size(-1)
+        d1d2 = d1*d2
+        if n!= d1d2 or m!= d1d2:
+            print("error")# TODO
+        l = len(self.batch_shape)
+        if any (self.batch_shape[i]!= X.size(i-l-2) in range(l)):
+            print("error")# TODO
+        L = torch.cholesky(X)
+        self.full_tril = L
 
     def get_stddevs(self):
         if self.all_independent:
@@ -999,7 +1043,7 @@ class GaussianMatrix(torch.nn.Module):
         #return self.loc + self.col_cov.times_L(self.row_cov.L_times(eps))
 
 
-    def lrsample(self, X,sample_shape,ignore_dependence_rows=False,ignore_dependence_cols=False): # samples with independant rows that have mean and covariance as matmul(X,self.rsample())
+    def lrsample(self, X, sample_shape=torch.Size(),ignore_dependence_rows=False,ignore_dependence_cols=False): # samples with independant rows that have mean and covariance as matmul(X,self.rsample())
         dep_rows = self.dependent_rows
         dep_cols = self.dependent_cols
         if ignore_dependence_rows and dep_rows:
@@ -1069,7 +1113,7 @@ class GaussianMatrix(torch.nn.Module):
             f2 = 1
         elif self.only_row_dep:
             f1 = 1
-            f2 = self.col if self.scale.size(-3)== 1 else 1
+            f2 = self.ncol if self.scale.size(-3)== 1 else 1
         sum_log_di = di.sum((-1)) if self.all_dependent else f1*f2*di.sum((-2,-1))
         return 2*sum_log_di
 
@@ -1098,30 +1142,30 @@ class GaussianMatrix(torch.nn.Module):
 
 
 class GaussianVector(GaussianMatrix):
-    support = constraints.real
-    has_rsample = True
-    has_lrsample = True
-
-    def __init__(self,*dim,independent = True,const_mean = False, homoscedastic = False,centered=False,stddev=1.0):
+    def __init__(self,*dim,dependent = False,iid=False,constant_mean=None,centered = False,stddev=1.0,parameter=True):
+        if iid and dependent:
+            print("warning set dependent to false")
+            dependent = False
         self.d = dim[-1]
-        super(GaussianVector, self).__init__(*dim,1,independent_rows = independent,independent_cols = True,const_row_mean = const_mean,const_col_mean = True, homoscedastic_rows = homoscedastic,homoscedastic_cols = False ,centered=centered,stddev=stddev)
+        super(GaussianVector, self).__init__(*dim,1,dependent_rows = dependent,dependent_cols = False,same_row_cov=iid,same_col_cov=True,constant_mean=constant_mean,centered = centered ,stddev=stddev,parameter=parameter)
 
     def rsample(self, sample_shape=torch.Size()):
         return super().rsample(sample_shape).squeeze(-1)
 
-    def lrsample(self, X): 
-        return super().lrsample(X).squeeze(-1)
+    def lrsample(self, X, sample_shape=torch.Size()): 
+        return super().lrsample(X,sample_shape).squeeze(-1)
 
     @property
-    def stddev(self):
-        return self.row_cov.stddev
-    @stddev.setter
-    def stddev(self,X):
-        self.row_cov.stddev=X
+    def stddevs(self):
+        return self.stddevs.squeeze(-1)
+    @stddevs.setter
+    def stddevs(self,X):# float or vector (with size [self.batch_shape,self.d])
+        try:
+            self.stddevs=X.unsqueeze(-1)
+        except AttributeError:
+            self.stddevs=X
 
-    @property
-    def cov(self):
-        return self.row_cov
+
 
     @property
     def tril(self):
