@@ -1,12 +1,13 @@
 import torch
 import timeit
+import numpy as np
 from torch import matmul, randn
 
 if __name__ == '__main__':
     d1 = 2
     d2 = 100000
     d3 = 3
-    
+    print(np.log(2*np.pi))
     A1 = randn(d1,d2)
     A2 = randn(d2,d3)
     B =  randn(1,d3)

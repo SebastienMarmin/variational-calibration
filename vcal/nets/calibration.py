@@ -1,6 +1,5 @@
 from abc import ABCMeta, abstractmethod
 import torch
-
 from .base import BaseNet
 from torch.distributions import kl_divergence
 
