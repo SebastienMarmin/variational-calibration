@@ -821,6 +821,7 @@ class GaussianMatrix(torch.nn.Module):
                 self.loc = torch.nn.Parameter(self.loc.detach())
             self.scale = torch.nn.Parameter(self.scale.detach())
 
+
     """
     def expand(self, batch_shape, _instance=None):
         new = self._get_checked_instance(GaussianMatrix, _instance)
