@@ -211,7 +211,7 @@ def plotCalibDomain(X, XStar, T, Y, Z, model,lower2,upper2,priorMean,priorCovRoo
     return tGrid, qThetaExact
 
 if __name__ == '__main__':
-    seed = 0
+    seed = 1
     vcal.utilities.set_seed(seed)
 
     # Setup dataset
@@ -337,4 +337,5 @@ if __name__ == '__main__':
         plt.ylabel(r'$t$')
         plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.15),
           ncol=2, fancybox=True).set_zorder(12)
-        plt.show()
+    plt.savefig("minimalist_example.pdf",format="pdf")
+    plt.close()
