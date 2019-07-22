@@ -1,3 +1,10 @@
+# experiments workspace
+experiments/workspace
+experiments/*/workspace
+tests/workspace
+tests/*/workspace
+
+
 # Tensor flow
 events.out.tfevents.*
 

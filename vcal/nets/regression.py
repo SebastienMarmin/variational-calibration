@@ -6,7 +6,7 @@ import torch.nn as nn
 from typing import Union
 
 from . import BaseNet
-from vcal.stats import GaussianMatrix
+from vcal.stats import GaussianVector
 from torch.distributions import Normal
 
 import numpy as np # TODO remove this line
@@ -24,7 +24,7 @@ class RegressionNet(BaseNet):
 
     def __init__(self, *args,**kwargs):
         super(RegressionNet, self).__init__(*args,**kwargs)
-        self.likelihood = GaussianMatrix(1,1,centered=True)
+        self.likelihood = GaussianVector(1,centered=True)
         self.likelihood.optimize(False) ## more user friendly here
 
     def compute_error(self, Y_pred: torch.Tensor, Y_true: torch.Tensor,n_over_m) -> torch.Tensor:

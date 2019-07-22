@@ -252,7 +252,7 @@ class GaussianMatrix(torch.nn.Module):
         if centered:
             self.loc=torch.zeros(1,1)
         elif constant_mean is not None:
-            self.loc = constant_mean*torch.ones(self.batch_shape).unsqueeze(-1).unsqueeze(-1)
+            self.loc = constant_mean*torch.ones(*self.batch_shape,1,1)
         else:
             self.loc = torch.zeros(self.event_shape)
 
@@ -305,8 +305,6 @@ class GaussianMatrix(torch.nn.Module):
                 self.loc = torch.nn.Parameter(self.loc.detach())
             self.scale = torch.nn.Parameter(self.scale.detach())
 
-
-
     def expand(self, *shape):
         q = self
         d1 = q.nrow
@@ -329,6 +327,92 @@ class GaussianMatrix(torch.nn.Module):
         return qT
 
 
+    def to_torch_distrib(self):# TODO handle low rank
+        d1 = self.nrow
+        d2 = self.ncol
+        batch_shape = self.batch_shape
+        m = self.loc.expand(*batch_shape,d1,d2).view(*batch_shape,-1,1).squeeze(-1)
+        L = self.full_tril
+        return torch.distributions.MultivariateNormal(m,scale_tril=L)
+
+    def _extended_shape(self,sample_shape):
+        return sample_shape + self.event_shape
+
+
+    def _infere_same_cov(self):
+        q = self
+        if q.all_independent:
+            same_row_cov = q.scale.shape[-2]==1
+            same_col_cov = q.scale.shape[-2]==1
+        elif q.all_dependent:
+            same_row_cov = False
+            same_col_cov = False
+        elif q.only_row_dep:
+            same_row_cov = False
+            same_col_cov = q.scale.shape[-3]==1
+        else:
+            same_row_cov = q.scale.shape[-3]==1
+            same_col_cov = False
+        return same_row_cov,same_col_cov
+
+    def transpose(self):
+        q = self
+        batch_shape = q.batch_shape
+        d1 = q.ncol
+        d2 = q.nrow
+        dependent_rows=q.dependent_cols
+        dependent_cols=q.dependent_rows
+        constant_mean=q.loc[0,0] if q.loc.shape[-1]==1 and q.loc.shape[-2]==1 else None
+        centered = q.centered
+        same_row_cov,same_col_cov = self._infere_same_cov()
+        qT = GaussianMatrix(*batch_shape,d1,d2,dependent_rows=dependent_rows,dependent_cols=dependent_cols,same_row_cov=same_col_cov,same_col_cov=same_row_cov,constant_mean=constant_mean,centered=centered,parameter=False)
+        qT.loc = q.loc.transpose(-1,-2).contiguous()
+        if qT.all_independent:
+            qT.scale = q.scale.transpose(-1,-2).contiguous()
+        elif qT.all_dependent:
+            tril = torch.tril(q.scale)
+            covRoot = tril.view(*tril.shape[:-2],d2,d1,d2*d1).transpose(-3,-2).contiguous().view(*tril.shape[:-2],d2*d1,d2*d1)
+            qT.scale = torch.cholesky(torch.matmul(covRoot,covRoot.transpose(-1,-2)))
+        else:
+            qT.scale = q.scale
+        return qT
+
+    @property
+    def mean(self):
+        return self.loc
+    @mean.setter
+    def mean(self,M):
+        loc = M.expand(*self.loc.shape)
+        try:
+            self.loc = loc
+        except TypeError:
+            self.loc = torch.nn.Parameter(loc,requires_grad=self.loc.requires_grad)
+    
+    def set_covariance(self,q,detach=True):
+        d1, d2 = self.nrow, self.ncol
+        same_row_cov,same_col_cov = self._infere_same_cov()
+        if self.all_independent:
+            self.set_diagonal(q.get_variances(expand_rows=False,expand_cols=False,root=True).detach())
+        elif (q.only_row_dep and self.only_row_dep) or (q.only_row_dep and self.only_row_dep):
+            scale = q.scale.expand(*self.batch_shape,d1,d2,d2) if self.only_col_dep else  q.scale.expand(*self.batch_shape,d2,d1,d1)
+            if (self.only_row_dep and same_col_cov) or (self.only_col_dep and same_row_cov):
+                scale_res = (scale**2).mean(-3).sqrt().unsqueeze(-3)
+            else:
+                scale_res = scale
+            try:
+                self.scale = scale_res.detach()
+            except TypeError:
+                self.scale = torch.nn.Parameter(scale_res.detach(),requires_grad=self.scale.requires_grad)# check if detach needed
+        elif q.all_independent or (q.only_row_dep and self.only_col_dep) or (q.only_col_dep and self.only_row_dep):
+            try:
+                self.scale = torch.zeros_like(self.scale)
+            except TypeError:
+                self.scale = torch.nn.Parameter(torch.zeros_like(self.scale),requires_grad=self.scale.requires_grad)
+                # kill all correlations as expected behavior
+            self.set_diagonal(q.get_variances(root=True).detach())
+        else: # q.all_dependent or self.all_dependent,
+            self.full_tril = q.full_tril.detach()
+
     @property
     def full_tril(self):
         d1 = self.nrow
@@ -347,41 +431,71 @@ class GaussianMatrix(torch.nn.Module):
         return L
     @full_tril.setter
     def full_tril(self,L):
+        self.set_scale_from_full_tril(L,is_cov=False)
+    
+    @property
+    def covariance_matrix(self):## TODO matmul earlier
+        L = self.full_tril
+        return matmul(L,L.transpose(-1,-2))
+    @covariance_matrix.setter
+    def covariance_matrix(self,C):
+        n = C.size(-2)
+        m = C.size(-1)
+        d1d2 = d1*d2
+        if n!= d1d2 or m!= d1d2:
+            print("error")# TODO
+        self.set_scale_from_full_tril(C,is_cov=True)
+
+    def set_scale_from_full_tril(self,L,is_cov=False):
         d1 = self.nrow
         d2 = self.ncol
         batch_shape = self.batch_shape
         if self.all_independent:# keep only the variances # TODO warning
-            V = (tril(L)**2).sum(-1).expand(*batch_shape,d1*d2).view(*batch_shape,d1,d2)
-            scale = V
+            if is_cov:
+                V = torch.diagonal(L,dim1=-1,dim2 = -2)
+            else:
+                V = (tril(L)**2).sum(-1)
+            scale = V.expand(*batch_shape,d1*d2).view(*batch_shape,d1,d2)
         elif self.only_col_dep:
             if d1>1:# keep only the col cov # TODO warning
-                print("warnings TODO")
+                if is_cov:
+                    full_cov = L
+                else:
+                    full_cov = matmul(L,L.transpose(-2,-1))
+                col_cov = torch.diagonal(full_cov.view(d1,d2,d1,d2).transpose(-3,-2),dim1=-3,dim2 = -4).transpose(-1,-3).transpose(-1,-2)
+                col_L = torch.cholesky(col_cov)
+                scale = col_L.expand(*batch_shape,d1,d2,d2)
             else:
-                scale = L.unsqueeze(-3).expand(*batch_shape,1,d2,d2)
+                if is_cov:
+                    lt = torch.cholesky(L)
+                else:
+                    lt = L
+                scale = lt.unsqueeze(-3).expand(*batch_shape,1,d2,d2)
         elif self.only_row_dep:
             if d2>1:# keep only the col cov # TODO warning
-                print("warnings TODO")
+                if is_cov:
+                    full_cov = L
+                else:
+                    full_cov = matmul(L,L.transpose(-2,-1))
+                row_cov = torch.diagonal(full_cov.view(d1,d2,d1,d2).transpose(-3,-2),dim1=-2,dim2 = -1).transpose(-1,-3).transpose(-1,-2)
+                row_L = torch.cholesky(row_cov)
+                scale = row_L.expand(*batch_shape,d2,d1,d1)
             else:
-                scale = L.unsqueeze(-3).expand(*batch_shape,1,d1,d1)
+                if is_cov:
+                    lt = torch.cholesky(L)
+                else:
+                    lt = L
+                scale = lt.unsqueeze(-3).expand(*batch_shape,1,d1,d1)
         else:
-            scale = L.expand(*batch_shape,d1*d2,d1*d2)
+            if is_cov:
+                lt = torch.cholesky(L)
+            else:
+                lt = L
+            scale = lt.expand(*batch_shape,d1*d2,d1*d2)
         try:
             self.scale = scale
         except TypeError:
-            self.scale = torch.nn.Parameter(scale)
-
-
-
-    def to_torch_distrib(self):# TODO handle low rank
-        d1 = self.nrow
-        d2 = self.ncol
-        batch_shape = self.batch_shape
-        m = self.loc.expand(*batch_shape,d1,d2).view(*batch_shape,-1,1).squeeze(-1)
-        L = self.full_tril
-        return torch.distributions.MultivariateNormal(m,scale_tril=L)
-
-    def _extended_shape(self,sample_shape):
-        return sample_shape + self.event_shape
+            self.scale = torch.nn.Parameter(scale,requires_grad=self.scale.requires_grad)
 
     def get_diagonal(self,formated=True):
         if self.all_independent:
@@ -400,20 +514,54 @@ class GaussianMatrix(torch.nn.Module):
                 return s
 
     def set_diagonal(self,value):
-        if self.all_independent:
-            self.scale.fill_(value)
+        if isinstance(value, (int, float)):
+            if self.all_independent:
+                scale = torch.ones_like(self.scale)*value
+            else:
+                scale = self.scale.detach()
+                torch.diagonal(scale,offset=0,dim1=-2,dim2=-1).fill_(value)
         else:
-            torch.diagonal(self.scale,offset=0,dim1=-2,dim2=-1).fill_(value)
-    def get_variances(self,expand_rows=False,expand_cols=False):
+            d1 = self.nrow
+            d2 = self.ncol
+            same_row_cov,same_col_cov = self._infere_same_cov()
+            scale_exp = value.expand(*self.batch_shape,d1,d2)
+            scale_res = scale_exp
+            if same_row_cov:
+                scale_res = (scale_res**2).mean(-2).sqrt().unsqueeze(-2)
+            if same_col_cov:
+                scale_res = (scale_res**2).mean(-1).sqrt().unsqueeze(-1)
+
+            if self.all_independent:
+                scale = scale_res
+            else:
+                scale = self.scale.detach()
+                torch.diagonal(scale,offset=0,dim1=-2,dim2=-1).fill_(0.0)
+                if self.only_col_dep:
+                    scale += torch.diag_embed(scale_res,dim1=-2,dim2=-1)
+                elif self.only_row_dep:
+                    scale += torch.diag_embed(scale_res.transpose(-1,-2),dim1=-2,dim2=-1)
+                else:
+                    scale += torch.diag_embed(scale_exp.contiguous().view(*scale_exp.shape[:-2],d1*d2),dim1=-2,dim2=-1)
+        try:
+            self.scale = scale.detach()
+        except TypeError:
+            self.scale = torch.nn.Parameter(scale.detach(),requires_grad=self.scale.requires_grad)# TODO is detach necessary?
+
+
+    def get_variances(self,expand_rows=False,expand_cols=False,root=False):
         if self.all_independent:
-            V = self.scale**2
+            V = self.scale if root else self.scale**2 
+            gvs = V.shape[:-2]
         else:
-            gv = (tril(self.scale)**2).sum(-1)
+            v = (tril(self.scale)**2).sum(-1)
+            gv = v.sqrt() if root else v
             gvs = gv.shape[:-2]
             if self.only_row_dep:
                 V = gv.transpose(-1,-2)
             elif self.all_dependent:
                 return gv.view(*gvs,self.nrow,self.ncol)
+            else:
+                V = gv
         if expand_rows and expand_cols:
             return V.expand(*gvs,self.nrow,self.ncol)
         elif expand_rows and not expand_cols:
@@ -425,38 +573,18 @@ class GaussianMatrix(torch.nn.Module):
 
     @property
     def variances(self):
-        return self.get_variances(expand_rows=True,expand_cols=True)
+        return self.get_variances(expand_rows=True,expand_cols=True,root=False)
     @property
-    def covariance_matrix(self):
-        L = self.full_tril
-        return matmul(L,L.transpose(-1,-2))
-    @covariance_matrix.setter
-    def covariance_matrix(self,X):
-        n = X.size(-2)
-        m = X.size(-1)
-        d1d2 = d1*d2
-        if n!= d1d2 or m!= d1d2:
-            print("error")# TODO
-        l = len(self.batch_shape)
-        if any (self.batch_shape[i]!= X.size(i-l-2) in range(l)):
-            print("error")# TODO
-        L = torch.cholesky(X)
-        self.full_tril = L
+    def stddevs(self):
+        return self.get_variances(expand_rows=True,expand_cols=True,root=True)
 
-    def get_stddevs(self):
-        if self.all_independent:
-            return self.param
-        else:
-            return (tril(self.scale)**2).sum(-1).sqrt()
+
     def set_stddevs(self,value):# float or torch scalar or matrix (batches times nrow times ncol)
         # TODO value check when same_row_dist e.g.
         if self.all_independent:
-            if isinstance(value, (int, float)) or value.numel() == 1:
-                self.scale.fill_(value.squeeze())
-            else:
-                self.scale = value.expand(self.scale.size())
+            self.set_diagonal(value)
         else:
-            stddevs = self.get_stddevs()
+            stddevs = self.param if self.all_independent else (tril(self.scale)**2).sum(-1).sqrt()
             if isinstance(value, (int, float)) or value.numel() == 1:
                 self.scale *= value/stddevs.unsqueeze(-1)
             else:
@@ -618,43 +746,6 @@ class GaussianMatrix(torch.nn.Module):
         for param in self.parameters():
             param.requires_grad = train
 
-    def _infere_same_cov(self):
-        q = self
-        if q.all_independent:
-            same_row_cov = q.scale.shape[-2]==1
-            same_col_cov = q.scale.shape[-2]==1
-        elif q.all_dependent:
-            same_row_cov = False
-            same_col_cov = False
-        elif q.only_row_dep:
-            same_row_cov = False
-            same_col_cov = q.scale.shape[-3]==1
-        else:
-            same_row_cov = q.scale.shape[-3]==1
-            same_col_cov = False
-        return same_row_cov,same_col_cov
-
-    def transpose(self):
-        q = self
-        batch_shape = q.batch_shape
-        d1 = q.ncol
-        d2 = q.nrow
-        dependent_rows=q.dependent_cols
-        dependent_cols=q.dependent_rows
-        constant_mean=q.loc[0,0] if q.loc.shape[-1]==1 and q.loc.shape[-2]==1 else None
-        centered = q.centered
-        same_row_cov,same_col_cov = self._infere_same_cov()
-        qT = GaussianMatrix(*batch_shape,d1,d2,dependent_rows=dependent_rows,dependent_cols=dependent_cols,same_row_cov=same_col_cov,same_col_cov=same_row_cov,constant_mean=constant_mean,centered=centered,parameter=False)
-        qT.loc = q.loc.transpose(-1,-2).contiguous()
-        if qT.all_independent:
-            qT.scale = q.scale.transpose(-1,-2).contiguous()
-        elif qT.all_dependent:
-            tril = torch.tril(q.scale)
-            covRoot = tril.view(*tril.shape[:-2],d2,d1,d2*d1).transpose(-3,-2).contiguous().view(*tril.shape[:-2],d2*d1,d2*d1)
-            qT.scale = torch.cholesky(torch.matmul(covRoot,covRoot.transpose(-1,-2)))
-        else:
-            qT.scale = q.scale
-        return qT
 
     def entropy(self): # TODO test
         log_det = self.log_det
@@ -669,6 +760,10 @@ class GaussianVector(GaussianMatrix):
             print("warning set dependent to false")
             dependent = False
         self.d = dim[-1]
+        if self.d==1:# also work without this block, just for performance
+            iid = True
+            dependent = False
+
         super(GaussianVector, self).__init__(*dim,1,dependent_rows = dependent,dependent_cols = False,same_row_cov=iid,same_col_cov=True,constant_mean=constant_mean,centered = centered ,stddev=stddev,parameter=parameter)
 
     def rsample(self, sample_shape=torch.Size()):
@@ -677,24 +772,34 @@ class GaussianVector(GaussianMatrix):
     def lrsample(self, X, sample_shape=torch.Size()): 
         return super().lrsample(X,sample_shape).squeeze(-1)
 
+
+    @property
+    def variances(self):
+        return self.get_variances(expand_rows=True,expand_cols=False,root=False).squeeze(-1)
+
     @property
     def stddevs(self):
-        return self.stddevs.squeeze(-1)
+        return self.get_variances(expand_rows=True,expand_cols=False,root=True).squeeze(-1)
     @stddevs.setter
-    def stddevs(self,X):# float or vector (with size [self.batch_shape,self.d])
+    def stddevs(self,X):# float or vector (with size [...,self.d])
         try:
-            self.stddevs=X.unsqueeze(-1)
+            self.set_stddevs(X.unsqueeze(-1))
         except AttributeError:
-            self.stddevs=X
+            self.set_stddevs(X)
 
-
+    @property
+    def mean(self):
+        return super().mean.squeeze(-1)
+    @mean.setter
+    def mean(self,m):
+        super().mean = m.unsqueeze(-1)
 
     @property
     def tril(self):
-        return self.row_cov.tril
+        return self.full_tril
     @tril.setter
-    def tril(self,X):
-        self.row_cov.tril = X
+    def tril(self,L):
+        self.full_tril = L
 
     def log_prob(self, value):
         return super().log_prob(value.unsqueeze(-1)).squeeze(-1)

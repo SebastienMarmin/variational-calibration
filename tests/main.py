@@ -1,7 +1,7 @@
 import os, sys
 from os.path import isfile, join
 from os import listdir
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.append(os.path.join(os.path.dirname(__file__), "../../vcal"))#sys.path.append(os.path.join(".", "../../"))#
 
 import argparse
 import numpy as np
@@ -25,16 +25,16 @@ import matplotlib
 from matplotlib import pyplot as plt
 import timeit
 
-models = {"additive":AdditiveDiscrepancy}
+models = {"calib_model":AdditiveDiscrepancy}
 
 def parse_args():
     available_models = models.keys()
-    available_datasets = ["calib_borehole","calib_currin","calib_case1","calib_case1","calib_nevada","calib_test_full"]
+    available_datasets = ["calib_borehole","calib_currin","calib_case1","calib_test_full","borehole"]
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', choices=available_datasets, type=str, required=True,
                         help='Dataset name')
-    parser.add_argument('--dataset_dir', type=str, default='/mnt/workspace/Datasets',
+    parser.add_argument('--dataset_dir', type=str, default='/mnt/workspace/research/datasets.gitlab/export',
                         help='Dataset directory')
     parser.add_argument('--split_ratio_run', type=float, default=1,
                         help='Train/test split ratio for computer runs')
@@ -50,10 +50,8 @@ def parse_args():
                         help='Batch size during training for real observations')
     parser.add_argument('--batch_size_run', type=int, default=20,
                         help='Batch size during training for computer runs')
-    parser.add_argument('--nlayers_obs', type=int, default=1,
-                        help='Number of GP layers for discrepancy')
-    parser.add_argument('--nlayers_run', type=int, default=1,
-                        help='Number of GP layers for computer model')
+    parser.add_argument('--nlayers', type=int, default=1,
+                        help='Number of hidden layers')
     parser.add_argument('--nfeatures_run', type=int, default=20,
                         help='Dimensionality of hidden layers for the computer model',)
     parser.add_argument('--nfeatures_obs', type=int, default=20,
@@ -61,7 +59,7 @@ def parse_args():
     parser.add_argument('--lr', type=float, default=1e-4,
                         help='Learning rate for training', )
     parser.add_argument('--lr_calib', type=float, default=1e-1,
-                        help='Learning rate for training of the variational calibration', )
+                        help='Learning rate for training', )
     parser.add_argument('--model', choices=available_models, type=str,
                         help='Type of Bayesian model')
     parser.add_argument('--outdir', type=str,
@@ -100,6 +98,7 @@ def parse_args():
     else:
         args.device = 'cpu'
     return args
+
 
 
 def setup_dataset():# TODO common setup
@@ -245,8 +244,8 @@ def plotCalibDomain(X, XStar, T, Y, Z, model,lower2,upper2,priorMean,priorCovRoo
     tGrid  = giveGrid(axialPre,D2).type(dtype)*(upper2-lower2).unsqueeze(0)+lower2.unsqueeze(0)
     #qThetaExact = realThetaPosteriorGivenHyperParam(tGrid,priorMean,priorCovRoot,X, XStar, T, Y, Z, model,returnNumpy=False,log=log)
     qThetaExact = None
-    qTheta = normalPDF(tGrid,model.calib_posterior.mean,model.calib_posterior.tril,isRoot=True)
-    pTheta = normalPDF(tGrid,model.calib_prior.mean,model.calib_prior.tril,isRoot=True)
+    qTheta = normalPDF(tGrid,model.calib_posterior.loc.data.squeeze(1),model.calib_posterior.tril,isRoot=True)
+    pTheta = normalPDF(tGrid,model.calib_prior.loc.data.squeeze(1),model.calib_prior.tril,isRoot=True)
     output = plt.figure()
     if subplot is not None:
         outputPlt = subplot
@@ -309,17 +308,20 @@ if __name__ == '__main__':
     delta.lengthscales = .03*torch.ones(1)
     computer_model = RegressionNet(eta)
     discrepancy   = RegressionNet(delta)
-    computer_model.likelihood.stddevs = args.noise_std_run
-    discrepancy.likelihood.stddevs    = args.noise_std_obs
+    computer_model.likelihood.row_stddev = args.noise_std_run
+    discrepancy.likelihood.row_stddev    = args.noise_std_obs
 
 
-    calib_prior = GaussianVector(calib_dim,constant_mean=.5,parameter=False)
-    calib_prior.stddevs=50 # TODO user friendly?
+    calib_prior = GaussianVector(calib_dim,homoscedastic=True,const_mean=True)
+    calib_prior.loc.data=torch.ones(1,1)*0.5
+    calib_prior.row_cov.parameter.data=torch.ones(1,1)*50 # TODO user friendly?
+    calib_prior.optimize(False)
     calib_posterior = GaussianVector(calib_dim)
-    calib_posterior.set_covariance(calib_prior)
+    calib_posterior.set_to(calib_prior)
+    calib_posterior.row_cov.parameter.detach()
     calib_posterior.loc.data = torch.ones(1,1)*torch.randn(1).item()*.5+.5
-    calib_posterior.stddevs = .05
 
+    calib_posterior.stddev = .05
     model = AdditiveDiscrepancy(computer_model,discrepancy,calib_prior,calib_posterior,true_calib=true_calib)
 
     ### Initialization of the computer model
@@ -388,4 +390,4 @@ if __name__ == '__main__':
     plt.show()
     calib_posterior.loc.data = theta_opt
 
-    tGrid, qTheta  = plotCalibDomain(X.data, X_star.data, T.data, Y.data, Z.data, model,lower2,upper2,calib_prior.loc.data,calib_prior.covariance_matrix,true_calib,axialPre)
+    tGrid, qTheta  = plotCalibDomain(X.data, X_star.data, T.data, Y.data, Z.data, model,lower2,upper2,calib_prior.loc.data,calib_prior.cov,true_calib,axialPre)

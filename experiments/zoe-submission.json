@@ -1,0 +1,32 @@
+{
+  "size": 512,
+  "name": "pydatasci",
+  "version": 3,
+  "services": [
+    {
+      "total_count": 1,
+      "essential_count": 1,
+      "replicas": 1,
+      "volumes": [],
+      "environment": [],
+      "ports": [
+      ],
+      "image": "zapps/pydatasci:10396",
+      "resources": {
+        "cores": {
+          "min": 9,
+          "max": 2
+        },
+        "memory": {
+          "min": 19327352832,
+          "max": 6442450944
+        }
+      },
+      "command": "/usr/local/bin/start_notebook.sh",
+      "startup_order": 0,
+      "monitor": true,
+      "name": "submissions"
+    }
+  ],
+  "will_end": true
+}

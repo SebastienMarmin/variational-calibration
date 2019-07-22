@@ -27,12 +27,11 @@ class FeaturesGaussianProcess(GaussianProcess):
 
     def set_to_prior(self):
         self.W.loc.data = self.W_prior.loc.expand(self.W.loc.shape).detach().clone()
-        self.W.row_cov.detach_clone(self.W_prior.row_cov)
-        self.W.col_cov.detach_clone(self.W_prior.col_cov)
+        self.W.set_covariance(self.W_prior)
          # basically do the same as detach().clone() for replacing W.row_cov.parameter.data,
-         # except it handle the flag .diagonal and .homoscedastic consistantly
+         # except it keep and handle consistantly all the flag of self.W (all_independent, only_row_dep, etc)
          # and do proper expand if the bach_size are different.
-         # self.W.col_cov.tril = self.W_prior.col_cov.tril.detach().clone()
+
 
 
     def set_to_posterior(self,X,Y,noise_covariance):
@@ -91,9 +90,8 @@ class FourierFeaturesGaussianProcess(FeaturesGaussianProcess):
         self.sqrt_nfeatures = np.sqrt(self.nfeatures)
         d1 = self.nfeatures_W
         d2 = self.out_features
-        self.W = GaussianMatrix(d1,d2,independent_cols=True,independent_rows=False)
-        self.W_prior = GaussianMatrix(d1,d2,homoscedastic_cols=True,homoscedastic_rows=True,centered=True)
-        self.W_prior.optimize(False)
+        self.W = GaussianMatrix(d1,d2,dependent_rows=True)
+        self.W_prior =GaussianMatrix(d1,d2,same_col_cov=True,same_row_cov=True,centered=True,parameter=False)
         self.W.optimize(W_optim_status)
         self.Omega.data = self.cov_structure.sample_spectrum(self.nfeatures)
 

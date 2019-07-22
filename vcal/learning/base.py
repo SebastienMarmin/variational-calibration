@@ -53,19 +53,23 @@ class Trainer(object):
 
         optimizable_params = set(filter(lambda p: p.requires_grad, model.parameters()))
         likelihood_params = set(model.likelihood.parameters())
-        if True:# TODO try/catch
+        lr_likelihood = kwargs.pop('lr_likelihood') if 'lr_likelihood' in kwargs else  optimizer_config['lr']/5.
+        try:
             calib_params = set(model.calib_posterior.parameters())
             model_params = optimizable_params - likelihood_params - calib_params
-        else:
-            model_params = optimizable_params - likelihood_params
-
-        lr_calib = kwargs.pop('lr_calib') if 'lr_calib' in kwargs else  optimizer_config['lr']
-        lr_likelihood = kwargs.pop('lr_likelihood') if 'lr_likelihood' in kwargs else  optimizer_config['lr']/5.
-        self.optimizer = available_optimizers[optimizer]([
+            lr_calib = kwargs.pop('lr_calib') if 'lr_calib' in kwargs else  optimizer_config['lr']
+            self.optimizer = available_optimizers[optimizer]([
                 {'params': list(model_params)},
                 {'params': list(likelihood_params), 'lr': lr_likelihood},
                 {'params': list(calib_params), 'lr': lr_calib}
             ], **optimizer_config)
+        except AttributeError:
+            model_params = optimizable_params - likelihood_params
+            self.optimizer = available_optimizers[optimizer]([
+                {'params': list(model_params)},
+                {'params': list(likelihood_params), 'lr': lr_likelihood}
+            ], **optimizer_config)
+
 
         for group in self.optimizer.param_groups:
             group.setdefault('initial_lr', group['lr'])
