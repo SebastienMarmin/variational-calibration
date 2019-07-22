@@ -2,9 +2,11 @@ import numpy as np
 import torch
 from torch import nn as nn
 from torch import matmul
+from torch.distributions import kl_divergence
 from . import GaussianProcess
 from ..utilities import regress_linear as regress
-from vcal.stats import Normal, kl_divergence,  GaussianMatrix, CovarianceMatrix
+from vcal.stats import GaussianMatrix
+import vcal.stats.kl
 
 
 class FeaturesGaussianProcess(GaussianProcess):
@@ -41,14 +43,14 @@ class FeaturesGaussianProcess(GaussianProcess):
         Lambda = noise_covariance
         i = 0 # TODO D_out>1
         mu = self.W_prior.loc
-        Gamma = self.W_prior.row_covariance
+        Gamma = self.W_prior.covariance_matrix
 
         meanBeta, covBeta, _ = regress(prior_std*Phi,Yc,Lambda,Gamma,mu) # infere beta in: Yc = Phi beta + eps
         # Lambda: prior in eps; mu and Gamma: prior on beta
         meaRp = self.W.loc.data.clone().detach()
         meaRp[:,0] = meanBeta
         self.W.loc.data = meaRp
-        self.W.row_cov.tril = torch.cholesky(covBeta,upper=False).detach()
+        self.W.full_tril = torch.cholesky(covBeta,upper=False).detach()
         
 
 
@@ -60,7 +62,7 @@ class FeaturesGaussianProcess(GaussianProcess):
         if self.local_reparam:
             F = self.W.lrsample(Phi)
         else:
-            F = matmul(Phi,self.W.rsample([nmc]))
+            F = matmul(Phi,self.W.rsample(torch.Size([nmc])))
         output = m+self.stddevs*F
         return output
 
@@ -77,9 +79,9 @@ class FourierFeaturesGaussianProcess(FeaturesGaussianProcess):
         #distrW = 'full_covariance_matrix_gaussian' if self.full_cov_W else 'fully_factorized_matrix_gaussian'
         d1 = self.nfeatures_W
         d2 = self.out_features
-        self.W = GaussianMatrix(d1,d2,independent_cols=True,independent_rows=False)# full cov
-        self.W_prior = GaussianMatrix(d1,d2,homoscedastic_cols=True,homoscedastic_rows=True,centered=True)
-        self.W_prior.optimize(False)
+        self.W = GaussianMatrix(d1,d2,dependent_rows=True)# full cov
+        self.W_prior = GaussianMatrix(d1,d2,same_col_cov=True,same_row_cov=True,centered=True,parameter=False)
+        #self.W_prior.optimize(False)
         self.Omega = nn.Parameter(self.cov_structure.sample_spectrum(self.nfeatures),requires_grad=False)
         # if user set Omega.grad=True, it's recommanded to put lengthscales.grad = False.
 
