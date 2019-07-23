@@ -1,4 +1,4 @@
-# Variational Calibration of Computer experiments
+# Variational Calibration of Computer Experiments
 _Private release_
 
 ## Technologies
