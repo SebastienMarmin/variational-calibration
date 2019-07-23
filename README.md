@@ -1,5 +1,5 @@
 # Variational Calibration of Computer experiments
-
+_Private release_
 
 ## Technologies
 - Python 3.6
@@ -9,4 +9,4 @@
 
 
 ## Installation
-- Make sure you can import the python modules bunch, humanize and tensorboardX
+- Make sure you can import the python modules bunch, humanize and tensorboardX.
