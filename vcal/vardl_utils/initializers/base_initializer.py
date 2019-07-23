@@ -38,7 +38,7 @@ class BaseInitializer(abc.ABC):
             self._initialize_layer(layer, i)
             i += 1
         t_end = time()
-        logger.info('Initialization done in %.3f sec.' % (t_end - t_start))
+        logger.info('Initialization done in %.3f s.' % (t_end - t_start))
 
     def __repr__(self):
         return str(self.layers)

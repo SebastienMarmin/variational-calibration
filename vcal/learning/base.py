@@ -51,6 +51,7 @@ class Trainer(object):
         logger.info('Total: %s' % model.trainable_parameters)
 
 
+
         optimizable_params = set(filter(lambda p: p.requires_grad, model.parameters()))
         likelihood_params = set(model.likelihood.parameters())
         lr_likelihood = kwargs.pop('lr_likelihood') if 'lr_likelihood' in kwargs else  optimizer_config['lr']/5.

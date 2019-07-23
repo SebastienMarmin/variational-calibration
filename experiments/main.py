@@ -29,7 +29,7 @@ models = {"additive":AdditiveDiscrepancy}
 
 def parse_args():
     available_models = models.keys()
-    available_datasets = ["calib_borehole","calib_currin","calib_case1","calib_case1","calib_nevada","calib_test_full"]
+    available_datasets = ["calib_borehole","calib_currin","calib_case1","calib_case2","calib_nevada","calib_test_full"]
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', choices=available_datasets, type=str, required=True,
@@ -40,7 +40,7 @@ def parse_args():
                         help='Train/test split ratio for computer runs')
     parser.add_argument('--split_ratio_obs', type=float, default=1,
                         help='Train/test split ratio for real observations')
-    parser.add_argument('--verbose', action='store_true', default=False,
+    parser.add_argument('--verbose', action='store_true', default=True,
                         help='Verbosity of training steps')
     parser.add_argument('--nmc_train', type=int, default=1,
                         help='Number of Monte Carlo samples during training')
@@ -96,7 +96,11 @@ def parse_args():
     args.outdir = os.path.abspath(args.outdir)+'/'
 
     if args.cuda:
-        args.device = 'cuda'
+        if torch.cuda.is_available():
+            args.device = 'cuda'
+        else:
+            print("Cuda not available. Using cpu.")
+            args.device = 'cpu'
     else:
         args.device = 'cpu'
     return args
@@ -299,6 +303,13 @@ if __name__ == '__main__':
     train_obs_loader,train_run_loader,test_obs_loader,test_run_loader, input_dim, calib_dim,output_dim,true_calib = setup_dataset()
     train_data_loader = MultiSpaceBatchLoader(train_obs_loader,train_run_loader)
     test_data_loader  = MultiSpaceBatchLoader(test_obs_loader,  test_run_loader)
+
+    dobs = train_data_loader.loaders[0].dataset
+    drun = train_data_loader.loaders[1].dataset
+    logger.info("Training observation points: {:4d}, in dimension {:3d}.".format(len(dobs),dobs.tensors[0].size(-1)))
+    logger.info("Training computer runs:      {:4d}, in dimension {:3d}.".format(len(drun),drun.tensors[0].size(-1)+drun.tensors[1].size(-1)))
+    logger.info("Calibration dimension: {:3d}".format(drun.tensors[1].size(-1)))
+
     nmc_train = args.nmc_train
     nmc_test  = args.nmc_test
     eta   = GP(input_dim,           output_dim,nfeatures=args.nfeatures_run, nmc_train=nmc_train, nmc_test=nmc_test)
@@ -334,9 +345,11 @@ if __name__ == '__main__':
     tb_logger = vcal.vardl_utils.logger.TensorboardLogger(path=outdir, model=model, directory=None)
     trainer = vcal.learning.Trainer(model, 'Adam', {'lr': args.lr}, train_data_loader,test_data_loader,args.device, args.seed, tb_logger, debug=args.verbose,lr_calib=args.lr_calib)
 
-    logger.info(model.string_parameters_to_optimize())
-    trainer.fit(args.iterations_free_noise, args.test_interval, 1, time_budget=args.time_budget//2)
+    if not args.verbose: # already displayed by the creator of trainer with verbose
+        logger.info(model.string_parameters_to_optimize())
 
+    trainer.fit(args.iterations_fixed_noise, args.test_interval, 1, time_budget=args.time_budget//2)
+    logger.info("Training finished")
     """
     eta.optimize(False)
     delta.optimize(False)    
@@ -366,7 +379,7 @@ if __name__ == '__main__':
     """
 
     # Figure
-    
+    """    
     X, Y = next(iter(test_obs_loader))
     X_star, T, Z = next(iter(test_run_loader))
 
@@ -381,7 +394,7 @@ if __name__ == '__main__':
 
     for i in range(axialPre):
         t = gr[i]
-        model.calib_posterior.loc.data = t.expand([1,1])
+        model.calib_posterior.mean = t.expand([1,1])
         res[i] = trainer.compute_loss_test()
     plt.plot(gr.numpy(),res.numpy())
     plt.plot([true_calib[0].numpy(),true_calib[0].numpy()],[res.min(),res.max()],color="red")
@@ -389,3 +402,4 @@ if __name__ == '__main__':
     calib_posterior.loc.data = theta_opt
 
     tGrid, qTheta  = plotCalibDomain(X.data, X_star.data, T.data, Y.data, Z.data, model,lower2,upper2,calib_prior.loc.data,calib_prior.covariance_matrix,true_calib,axialPre)
+    """

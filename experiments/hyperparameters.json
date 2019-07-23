@@ -1,26 +1,30 @@
 {
   "bin": "python3",
-  "executable": "/mnt/workspace/vardl/experiments/fastfood-gp-exp/main.py",
+  "executable": "./main.py",
   "n_gpus": 1,
   "jobs_per_gpu": 2,
+  "_comments": ["calib_case1","calib_case2","calib_nevada","calib_borehole"],
   "hyperparameters": {
-    "dataset_dir": ["/mnt/workspace/Datasets/"],
-    "outdir": ["/mnt/workspace/vardl/experiments/fastfood-gp-exp/workspace"],
-    "dataset": ["simple1"],
-    "nlayers": [0],
-    "nfeature": [8, 512],
-    "model": ["gprf"],
-    "nmc_train": [10],
-    "nmc_test": [50],
-    "lr": [5e-6],
-    "iterations_fixed_noise": [2000],
-    "iterations_free_noise": [500],
-    "test_interval": [500],
-    "full_cov_W": [1],
-    "fastfood": [1],
-    "reshape": [1]
+    "dataset_dir": ["~/Datasets/"],
+    "outdir": ["./workspace"],
+    "dataset": ["calib_case2","calib_nevada","calib_borehole"],
+    "nlayers_run": [1],
+    "nlayers_obs": [1],
+    "nfeatures_run": [10],
+    "nfeatures_obs": [10],
+    "model": ["additive"],
+    "nmc_train": [5],
+    "nmc_test": [20],
+    "lr": [5e-7],
+    "lr_calib": [5e-5],
+    "iterations_fixed_noise": [200],
+    "iterations_free_noise": [0],
+    "test_interval": [20],
+    "batch_size_obs": [20],
+    "batch_size_run": [20],
+    "full_cov_W": [0],
+    "seed": [0],
+    "init_batchsize": [10000]
   }
 }
-
-
 
