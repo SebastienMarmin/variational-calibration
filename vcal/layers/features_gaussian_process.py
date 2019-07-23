@@ -34,20 +34,20 @@ class FeaturesGaussianProcess(GaussianProcess):
 
 
 
-    def set_to_posterior(self,X,Y,noise_covariance):
+    def set_to_posterior(self,X,Y,noise_covariance,output_index=0):
+        i = output_index
         M = self.prior_means(X)
-        Yc = Y - M
+        Yc = Y - M[...,i]
         Phi = self.activation(X)
         prior_std = self.stddevs
         Lambda = noise_covariance
-        i = 0 # TODO D_out>1
-        mu = self.W_prior.loc
+
+        mu = self.W_prior.mean[:,i]
 
         Gamma = self.W_prior.get_column_covariances(i,root=False)
-        if not self.W_prior.dependent_rows: # Gamma diagonal
-            Gamma =Gamma.squeeze(-1)# TODO adapt regress to detect diagonal cov when dx1 matrices
-
-        meanBeta, covBeta, _ = regress(prior_std*Phi,Yc[:,i],Lambda,Gamma,mu)
+        print("Lambda")
+        print(Lambda)
+        meanBeta, covBeta, _ = regress(prior_std*Phi,Yc,Lambda,Gamma,mu)
         # infere beta : Yc = Phi beta + eps
         # Lambda: prior in eps; mu and Gamma: prior on beta
         meaRp = self.W.loc.data.clone().detach()

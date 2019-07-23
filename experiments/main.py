@@ -371,7 +371,8 @@ if __name__ == '__main__':
     init_batchsize_run = min(args.init_batchsize,npts_run)
     init_data_run,_=random_split(train_data_loader.loaders[1].dataset,[init_batchsize_run,npts_run-init_batchsize_run])
     dataloader_run_for_init=SingleSpaceBatchLoader(DataLoader(init_data_run,batch_size=init_batchsize_run),cat_inputs=True)
-    computer_model_initializer=IBLMInitializer(computer_model,dataloader_run_for_init,noise_var =args.noise_std_run**2)
+    scale_factor = 1 # TODO
+    computer_model_initializer=IBLMInitializer(computer_model,dataloader_run_for_init,noise_var =0.01*scale_factor)
     computer_model_initializer.initialize()
     
     tb_logger = vcal.vardl_utils.logger.TensorboardLogger(path=outdir, model=model, directory=None)

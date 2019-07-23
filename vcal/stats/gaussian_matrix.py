@@ -379,7 +379,7 @@ class GaussianMatrix(torch.nn.Module):
 
     @property
     def mean(self):
-        return self.loc
+        return self.loc.expand(*self.batch_shape,self.nrow,self.ncol)
     @mean.setter
     def mean(self,M):
         loc = M.expand(*self.loc.shape)
@@ -575,7 +575,8 @@ class GaussianMatrix(torch.nn.Module):
 
     def get_column_covariances(self,index,root):
         if self.all_independent:
-            sc = self.scale[...,:,index].unsqueeze(-1)
+            index_c = 0 if self.scale.size(-1)==1 else index
+            sc = self.scale[...,:,index_c].unsqueeze(-1)
             C =  sc if root else sc**2
         elif self.only_row_dep:
             index_c = 0 if self.scale.size(-3)==1 else index

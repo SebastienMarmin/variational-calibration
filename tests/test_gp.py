@@ -20,7 +20,7 @@ if __name__ == '__main__':
 
     inp = torch.rand(n,input_dim)
     out = torch.randn(n,output_dim)
-    eta.set_to_posterior(inp,out,0.010**2)
+    eta.set_to_posterior(inp,out[:,0],0.010**2)
 
     out_pred = eta(inp.unsqueeze(0).expand(torch.Size([eta.nmc])+inp.size()))
     for i in range(eta.nmc):

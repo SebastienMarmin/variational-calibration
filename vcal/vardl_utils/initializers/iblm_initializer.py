@@ -1,4 +1,4 @@
-# Adapted from Rossi 2018
+# Adapted from Simone Rossi 2018
 
 try:
     from tqdm import tqdm
@@ -54,31 +54,34 @@ class IBLMInitializer(BaseInitializer):
         in_features = layer.in_features
         out_features = layer.out_features
 
+        Y_dim = self.train_dataloader.loaders[-1].dataset.dataset.tensors[-1].size(-1)## TODO user friendly
+        
+        """
         try:
             X, Y = next(self.train_dataloader_iterator)
         except StopIteration:
             self.train_dataloader_iterator = self.train_dataloader.iterable(cycle=True,out_device=self.device)
             X, Y = next(self.train_dataloader_iterator)
+        """
 
         for out_index in tqdm(range(out_features)):
 
-            if not out_index % Y.size(1):
+            if out_index % Y_dim == 0:# TODO MultiSpace dataloader
                 try:
                     X, Y = next(self.train_dataloader_iterator)
                 except StopIteration:
                     self.train_dataloader_iterator = self.train_dataloader.iterable(cycle=True,out_device=self.device)
                     X, Y = next(self.train_dataloader_iterator)
-
             if issubclass(type(self.model),CalibrationNet):
-                print("là")
+                # need some data manip in calibration as the output of the discrepancy is not the data output
                 X,Y = self.model.give_discrepancy_input_output(X,Y)
-            index = np.random.random_integers(0, Y.size(1) - 1)
+            index_Y = out_index % Y_dim  # np.random.random_integers(0, Y.size(-1) - 1)
             if layer_index == 0:
                 new_in_data = X
             else:
                 # Run a forward pass (the hook will save the input to the layer)
                 self.model(X)
                 new_in_data = layer.input_to_layer.mean(0)
-            layer.set_to_posterior(new_in_data,Y,self.noise_var)
+            layer.set_to_posterior(new_in_data,Y[...,index_Y],self.noise_var,output_index=out_index)
         hook_hadler.remove()
 

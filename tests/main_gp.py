@@ -258,7 +258,7 @@ if __name__ == '__main__':
     print(model.likelihood.stddevs)
 
     print(model.likelihood.variances)
-    gp.set_to_posterior(X,Y,noise_covariance=model.likelihood.variances)
+    gp.set_to_posterior(X,Y.squeeze(-1),noise_covariance=model.likelihood.variances)
     display(model,XX,YY,X,Y,file_path="figure_analytic.pdf",sample_paths=False)
 
     logger.info("Testing and saving results...")

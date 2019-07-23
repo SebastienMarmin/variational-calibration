@@ -33,8 +33,9 @@ class RegressionNet(BaseNet):
     def compute_nell(self, Y_pred, Y_true, n_over_m) -> torch.Tensor:    
         return - n_over_m * torch.sum(torch.mean(self.likelihood.log_prob((Y_true - Y_pred).unsqueeze(-1).unsqueeze(-1)), 0))
         # unsqueeze twice because self.likelihood is a one-by-one Gaussian matrix and all the shapes of Y are for i.i.d. repetitions
-    
+    """
     def initialize(self,X,Y):
         self.eval()
         f = list(self.layers)[0] # TODO more layers, with Rossi 2018
         f.set_to_posterior(X,Y,self.likelihood.row_cov.parameter.item())
+    """
