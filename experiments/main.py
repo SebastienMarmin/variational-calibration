@@ -13,7 +13,7 @@ from torch.utils.data.dataset import random_split
 import timeit
 #import intertools
 import vcal
-from vcal.nets import AdditiveDiscrepancy, RegressionNet
+from vcal.nets import AdditiveDiscrepancy, RegressionNet, GeneralDiscrepancy
 from vcal.layers import FourierFeaturesGaussianProcess as GP
 from vcal.stats import GaussianVector
 from vcal.utilities import MultiSpaceBatchLoader,SingleSpaceBatchLoader, gentxt, VcalException
@@ -56,6 +56,8 @@ def parse_args():
                         help='Number of GP layers for computer model')
     parser.add_argument('--nfeatures_run', type=int, default=20,
                         help='Dimensionality of hidden layers for the computer model',)
+    parser.add_argument('--additive', type=int, default=1,
+                        help='Use additive or general discrepancy',)
     parser.add_argument('--nfeatures_obs', type=int, default=20,
                         help='Dimensionality of hidden layers for the discrepancy model',)
     parser.add_argument('--lr', type=float, default=1e-4,
@@ -87,6 +89,10 @@ def parse_args():
                         help='Save resulting model')
     parser.add_argument('--full_cov_W', type=int,default=0,
                         help='Switch from fully factorized to full cov for q(W)')
+    parser.add_argument('--rff_optim_run', type=int,default=0,
+                        help='Optimize the Fourier features instead of lengthscales for comp. model')
+    parser.add_argument('--rff_optim_obs', type=int,default=0,
+                        help='Optimize the Fourier features instead of lengthscales for discrepancy')
     parser.add_argument('--init_batchsize', type=int,default=10000,
                         help='Maximum number of data points for the initialization')
 
@@ -106,7 +112,7 @@ def parse_args():
     return args
 
 
-def setup_dataset():# TODO common setup
+def setup_dataset():
     dataset_unidir = join(args.dataset_dir, args.dataset)
     onlyfiles = [f for f in listdir(dataset_unidir) if isfile(join(dataset_unidir, f))]
     tensor_names = ("X","Y","XStar","T","Z")
@@ -280,6 +286,23 @@ def plotCalibDomain(X, XStar, T, Y, Z, model,lower2,upper2,priorMean,priorCovRoo
     
     return tGrid, qThetaExact
 
+def DGP(input_dim,output_dim,nlayers,nfeatures,nmc_train,nmc_test):
+    gp_list = list() # type: List(torch.nn.Module)
+    nl = nlayers
+    for i in range(nlayers):
+        # Layer widths given by trapezoidal interpolation
+        d_in = int((1-i/nl)*input_dim + i/nl*output_dim)
+        d_out = int((1-(i+1)/nl)*input_dim + (i+1)/nl*output_dim)
+        gp   = GP(d_in,d_out,nfeatures=nfeatures, nmc_train=nmc_train, nmc_test=nmc_test)
+        gp.variances   = torch.ones(1) # TODO remove lines
+        gp.lengthscales   = .3*torch.ones(1)
+        if i<nlayers-1:
+            gp._stddevs.requires_grad = False
+            # Scale factor useful only for the last layer 
+            # (because else it is equivalent to the lengthscale of the next GP)
+        gp_list += [gp]
+    return torch.nn.Sequential(*gp_list)
+
 if __name__ == '__main__':
     args = parse_args()
     outdir = vcal.vardl_utils.next_path('%s/%s/%s/' % (args.outdir, args.dataset, args.model) + 'run-%04d/')
@@ -310,28 +333,37 @@ if __name__ == '__main__':
     logger.info("Training computer runs:      {:4d}, in dimension {:3d}.".format(len(drun),drun.tensors[0].size(-1)+drun.tensors[1].size(-1)))
     logger.info("Calibration dimension: {:3d}".format(drun.tensors[1].size(-1)))
 
-    nmc_train = args.nmc_train
-    nmc_test  = args.nmc_test
-    eta   = GP(input_dim,           output_dim,nfeatures=args.nfeatures_run, nmc_train=nmc_train, nmc_test=nmc_test)
-    delta = GP(input_dim-calib_dim, output_dim,nfeatures=args.nfeatures_obs, nmc_train=nmc_train, nmc_test=nmc_test)
-    eta.variances   = torch.ones(1)
-    delta.variances = .1*torch.ones(1)
-    eta.lengthscales   = .3*torch.ones(1)
-    delta.lengthscales = .03*torch.ones(1)
+
+    eta = DGP(input_dim,output_dim,args.nlayers_run,args.nfeatures_run,args.nmc_train,args.nmc_test)
+    for gp in list(eta):
+        gp.optimize_fourier_features(args.rff_optim_run==1)
+    if args.additive == 1:
+        dim_delta = input_dim-calib_dim
+    else:
+        dim_delta = 1+ input_dim-calib_dim
+    logger.info("Discrepancy input dimension: {:3d}".format(dim_delta))
+    delta = DGP(dim_delta, output_dim,args.nlayers_obs,args.nfeatures_obs,args.nmc_train,args.nmc_test)
+    for gp in list(delta):
+        gp.optimize_fourier_features(args.rff_optim_obs==1)
+
     computer_model = RegressionNet(eta)
     discrepancy   = RegressionNet(delta)
+
     computer_model.likelihood.stddevs = args.noise_std_run
     discrepancy.likelihood.stddevs    = args.noise_std_obs
 
 
     calib_prior = GaussianVector(calib_dim,constant_mean=.5,parameter=False)
-    calib_prior.stddevs=50 # TODO user friendly?
+    calib_prior.stddevs=50
     calib_posterior = GaussianVector(calib_dim)
     calib_posterior.set_covariance(calib_prior)
     calib_posterior.loc.data = torch.ones(1,1)*torch.randn(1).item()*.5+.5
     calib_posterior.stddevs = .05
-
-    model = AdditiveDiscrepancy(computer_model,discrepancy,calib_prior,calib_posterior,true_calib=true_calib)
+    if args.additive == 1:
+        model = AdditiveDiscrepancy(computer_model,discrepancy,calib_prior,calib_posterior,true_calib=true_calib)
+    else:
+        model = GeneralDiscrepancy(computer_model,discrepancy,calib_prior,calib_posterior,true_calib=true_calib)
+    
 
     ### Initialization of the computer model
     # Compute how big can be the batch size

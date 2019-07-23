@@ -433,6 +433,8 @@ class GaussianMatrix(torch.nn.Module):
     def full_tril(self,L):
         self.set_scale_from_full_tril(L,is_cov=False)
     
+
+
     @property
     def covariance_matrix(self):## TODO matmul earlier
         L = self.full_tril
@@ -570,6 +572,58 @@ class GaussianMatrix(torch.nn.Module):
             return V.expand(*gvs,-1,self.ncol)
         else:
             return V
+
+    def get_column_covariances(self,index,root):
+        if self.all_independent:
+            sc = self.scale[...,:,index].unsqueeze(-1)
+            C =  sc if root else sc**2
+        elif self.only_row_dep:
+            index_c = 0 if self.scale.size(-3)==1 else index
+            L = tril(self.scale[...,index_c,:,:])
+            if root:
+                C = L
+            else:
+                C = matmul(L,L.transpose(-2,-1))
+        elif self.only_col_dep:
+            sc = (self.scale[...,:,index,0:(index+1)]**2).sum(-1).unsqueeze(-1)
+            C = sc.sqrt if root else sc**2
+        else:
+            raise NotImplementedError # TODO
+        return C # dxd or dx1 if diagonal or 1x1 if diagonal and homoscedastic
+
+
+    def set_column_covariances(self,L,index,root):# dxd or dx1 if diagonal or 1x1 if diagonal and homoscedastic
+        scale = self.scale
+        L_diag = L.size(-1)==1
+        if L_diag:
+            s = L.squeeze(-1) if root else L.squeeze(-1).sqrt()
+        if self.all_independent:
+            if not L_diag:
+                v = (L**2).sum(-1) if root else torch.diagonal(L,dim1=-2,dim2=-1)
+                s = v.sqrt()
+            scale[...,:,index] = s
+        elif self.only_row_dep:
+            if L_diag:
+                S = torch.diag_embed(s,dim1=-2,dim2=-1)
+            else:
+                S = L if root else torch.cholesky(L,lower=True,transpose=False)
+            index_c = 0 if scale.size(-3)==1 else index
+            scale[...,index_c,:,:] = S
+        elif self.only_col_dep:
+            if not L_diag:
+                v = (L**2).sum(-1) if root else torch.diagonal(L,dim1=-2,dim2=-1)
+                s = v.sqrt()
+            if scale.size(-3)==1 and not s.size(-1)==1:# take average variance
+                s = (s**2).mean(-1).sqrt()
+            scale[...,:,index,index] = s
+        else:
+            raise NotImplementedError # TODO
+        try:
+            self.scale = scale.detach()
+        except TypeError:
+            self.scale = torch.nn.Parameter(scale.detach(),requires_grad=self.scale.requires_grad)# TODO is detach necessary?
+
+
 
     @property
     def variances(self):

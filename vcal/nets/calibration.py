@@ -13,7 +13,10 @@ class CalibrationNet(BaseNet,metaclass=ABCMeta):
         self.calib_posterior = calib_posterior
         self.nell_computers = [self.discrepancy.compute_nell,self.computer_model.compute_nell]
         self.true_calib = true_calib
-        self.layers = discrepancy.layers
+        
+    @property
+    def layers(self):
+        return self.discrepancy.layers
 
     @abstractmethod
     def phenomenon(self,observationable_inputs,calibration_inputs):
@@ -94,7 +97,7 @@ class CalibrationNet(BaseNet,metaclass=ABCMeta):
         return [Y,Z]
     
 
-    def give_discrepancy_input_output(self, X,Y):
+    def give_discrepancy_input_output(self, X,Y):# for initialization
         self.eval()
         nmc = self.discrepancy.nmc
         with torch.no_grad():
@@ -114,7 +117,7 @@ class AdditiveDiscrepancy(CalibrationNet):
             eta = self.computer_model(torch.cat((X,T),-1),input_nmc_rep=False)
             return eta + delta
         
-        def give_discrepancy_child_input_output(self,X,Z_Xtheta,Y):
+        def give_discrepancy_child_input_output(self,X,Z_Xtheta,Y):# for initialization
             return X,Y-Z_Xtheta
 
         #def phenomenon_initialize(self,X,Z_Xtheta,Y):
@@ -122,14 +125,12 @@ class AdditiveDiscrepancy(CalibrationNet):
 
 
 class GeneralDiscrepancy(CalibrationNet):
-        def __init__(self,computer_model,discrepancy,calib_prior,calib_posterior):
-            super(GeneralDiscrepancy, self).__init__(computer_model,discrepancy,calib_prior,calib_posterior)
+        def __init__(self,*args,**kwargs):
+            super(GeneralDiscrepancy, self).__init__(*args,**kwargs)
 
         def phenomenon(self,X,T):
             eta = self.computer_model(torch.cat((X,T),-1),input_nmc_rep=False)
             return self.discrepancy(torch.cat((eta,X),-1),input_nmc_rep=False)
         
-        #def phenomenon_initialize(self,X,Z_Xtheta,Y):
-        #    self.discrepancy.initialize(torch.cat((Z_Xtheta,X),-1),Y)
-        def give_discrepancy_child_input_output(self,X,Z_Xtheta,Y):
+        def give_discrepancy_child_input_output(self,X,Z_Xtheta,Y):# for initialization
             return torch.cat((Z_Xtheta,X),-1),Y

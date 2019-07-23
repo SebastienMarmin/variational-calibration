@@ -19,8 +19,9 @@ class BaseNet(torch.nn.Module):
         super(BaseNet, self).__init__()
         if issubclass(type(layers),BaseLayer):
             self.layers = torch.nn.Sequential(layers)
-        else:
+        elif isinstance(layers, torch.nn.Sequential):
             self.layers = layers
+            
         #  torch.nn.Sequential() of BaseLayer
         # The point is the self.forward() calls list(self.layers)[0].nmc
         # Can be left to None if a child class defines its own forward
@@ -29,8 +30,10 @@ class BaseNet(torch.nn.Module):
 
     def train(self, training_mode=True):
         super().train(training_mode)  # acts on all submodules
-        if self.layers is not None:
+        try:
             self.nmc = list(self.layers)[0].nmc
+        except AttributeError:
+            pass
 
     def kl_divergence(self):
         total_dkl = 0.

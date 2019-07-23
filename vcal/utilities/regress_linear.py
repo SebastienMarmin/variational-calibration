@@ -1,6 +1,6 @@
 import torch
 
-def regress_linear(X,Y,Lambda=None,Gamma=None,mu=None,Lambda_inversed=False,Gamma_inversed=False,Lambda_rooted=False,Gamma_rooted=False):
+def regress_linear(X,Y,Lambda=None,Gamma=None,mu=None,Lambda_inversed=False,Gamma_inversed=False,Lambda_rooted=False,Gamma_rooted=False): # TODO batch version
     # X: input
     # Y: output vector (one-column matrix accepted)
     # Lambda: prior covariance matrix of the noise (accept vector if diagonal, scalar if homoscedastic, defaut [.1])

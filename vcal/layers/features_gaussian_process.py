@@ -42,14 +42,19 @@ class FeaturesGaussianProcess(GaussianProcess):
         Lambda = noise_covariance
         i = 0 # TODO D_out>1
         mu = self.W_prior.loc
-        Gamma = self.W_prior.covariance_matrix
 
-        meanBeta, covBeta, _ = regress(prior_std*Phi,Yc,Lambda,Gamma,mu) # infere beta in: Yc = Phi beta + eps
+        Gamma = self.W_prior.get_column_covariances(i,root=False)
+        if not self.W_prior.dependent_rows: # Gamma diagonal
+            Gamma =Gamma.squeeze(-1)# TODO adapt regress to detect diagonal cov when dx1 matrices
+
+        meanBeta, covBeta, _ = regress(prior_std*Phi,Yc[:,i],Lambda,Gamma,mu)
+        # infere beta : Yc = Phi beta + eps
         # Lambda: prior in eps; mu and Gamma: prior on beta
         meaRp = self.W.loc.data.clone().detach()
         meaRp[:,0] = meanBeta
         self.W.loc.data = meaRp
-        self.W.full_tril = torch.cholesky(covBeta,upper=False).detach()
+        L = torch.cholesky(covBeta,upper=False).detach()
+        self.W.set_column_covariances(L,i,root=True)
         
 
 
@@ -102,3 +107,8 @@ class FourierFeaturesGaussianProcess(FeaturesGaussianProcess):
     def fix_hyperparameters(self):
         super(FourierFeaturesGaussianProcess, self).fix_hyperparameters()
         self.Omega.requires_grad = False
+
+    def optimize_fourier_features(self,optim=True):
+        self.Omega.requires_grad = optim
+        if optim:
+            self._lengthscales = False
