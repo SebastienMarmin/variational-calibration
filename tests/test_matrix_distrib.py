@@ -156,7 +156,7 @@ if __name__ == '__main__':
     print("... no error got raised.")
 
 
-
+    """
     with torch.no_grad():
         for case_p in cL:
             for case_q in cL:
@@ -173,3 +173,4 @@ if __name__ == '__main__':
                 p.set_covariance(q)
                 print(p.scale)
                 print(q.scale)
+    """

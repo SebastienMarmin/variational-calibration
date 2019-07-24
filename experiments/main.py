@@ -399,8 +399,7 @@ if __name__ == '__main__':
     delta.optimize(True)    
     calib_posterior.optimize(True)    
     logger.info(model.string_parameters_to_optimize())
-    #print("hel")
-    #print(trainer.optimizer.lr)
+
     #trainer.optimizer.lr = 10e-16
     trainer.fit(args.iterations_fixed_noise, args.test_interval, 1, time_budget=args.time_budget//2)
     for p in model.likelihood.parameters():
