@@ -305,7 +305,7 @@ def DGP(input_dim,output_dim,nlayers,nfeatures,nmc_train,nmc_test):
 
 if __name__ == '__main__':
     args = parse_args()
-    outdir = vcal.vardl_utils.next_path('%s/%s/%s/' % (args.outdir, args.dataset, args.model) + 'run-%04d/')
+    outdir = vcal.vardl_utils.next_path('%s/%s/%s/' % (args.outdir, args.dataset, "additive_"+str(args.additive)) + 'run-%04d/')
     try:
         os.makedirs(outdir)
     except OSError:  
@@ -383,6 +383,40 @@ if __name__ == '__main__':
 
     trainer.fit(args.iterations_fixed_noise, args.test_interval, 1, time_budget=args.time_budget//2)
     logger.info("Training finished")
+
+
+    test_mnll, test_error = trainer.test()
+
+    
+    results = {}
+    for key, value in vars(args).items():
+        results[key] = value
+    results['trainable_parameters'] = model.trainable_parameters
+    results['test_mnll'] = float(test_mnll.item())
+    results.update(test_error)
+    results['total_iters'] = trainer.current_iteration
+
+    results["calib_mean"] = tuple((t.item() for t in calib_posterior.mean))
+    results["calib_std"] =  tuple((t.item() for t in calib_posterior.stddevs))
+
+    
+
+
+    if args.dataset == "calib_nevada":        
+        pre = 80
+        xx = torch.cat((torch.linspace(0,1,pre).unsqueeze(-1),torch.zeros(pre,1)),-1)
+
+        theta_hat = calib_posterior.mean.unsqueeze(-2).expand(xx.size(-2),-1)
+        model.eval()
+        Y_mean = model.phenomenon(xx,theta_hat)
+        results["y_mean"] =  tuple((y.item() for y in Y_mean))
+
+
+
+    with open(outdir + 'results.json', 'w') as fp:
+        json.dump(results, fp, sort_keys=True, indent=4)
+   
+
     """
     eta.optimize(False)
     delta.optimize(False)    

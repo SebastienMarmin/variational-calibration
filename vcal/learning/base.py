@@ -25,6 +25,8 @@ available_optimizers = {'Adam': optim.Adam,
                         'SGD': optim.SGD,
                         'Adagrad': optim.Adagrad}
 
+error_names = ("error_Y","error_Z","error_calib")
+
 class Trainer(object):
     def __init__(self, model, optimizer, optimizer_config, train_dataloader, test_dataloader, device,
                  seed, tb_logger, **kwargs):
@@ -242,13 +244,15 @@ class Trainer(object):
         if self.test_verbose:
             stri = 'Test || iter=%5d   mnll=%01.03e' %(self.current_iteration, test_nell.item())
             for i in range(len(test_error)):
-                stri += "   err_"+str(i)+("=%01.03e"%(test_error[i]))
+                stri += "   "+error_names[i]+("=%01.03e"%(test_error[i]))
             logger.info(stri)
         self.tb_logger.scalar_summary('loss/test', test_nell, self.current_iteration)
         for i in range(len(test_error)):
-            self.tb_logger.scalar_summary('error_'+str(i)+'/test', test_error[i], self.current_iteration)
-
-        return test_nell, test_error
+            self.tb_logger.scalar_summary(error_names[i]+'/test', test_error[i], self.current_iteration)
+        test_error_dic = {}
+        for key, value in zip(error_names,test_error):
+            test_error_dic[key] = value.item()
+        return test_nell, test_error_dic
 
     def multistart(self,perturbation,iterations,nstarts=1, train_log_interval=1000, time_budget=120):
         if iterations == 0:
@@ -313,7 +317,7 @@ class Trainer(object):
                 self._train_per_iterations(test_interval, train_log_interval)
 
                 test_nell, test_error = self.test()
-                if test_nell < best_test_nell and test_error.sum() < best_test_error.sum()  and self.save_checkpoints:
+                if test_nell < best_test_nell and sum(test_error.values()) < sum(best_test_error.values())  and self.save_checkpoints: # TODO more elegant criteria
                     logger.info('Current snapshot (MNLL: %.3f - ERR: %.3f) better than previous.' % (test_nell,
                                                                                                      test_error))
                     is_best = True
