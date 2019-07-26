@@ -15,6 +15,11 @@ mean_VIcalib  <- as.numeric(c(args[4],args[5],args[6]))
 sd_VIcalib  <- as.numeric(c(args[7],args[8], args[9]))
 
 
+if (length(args)>9) {
+	folder <-  args[10]
+} else {
+	folder <-  ""
+}
 
 
 axialPre <- 150
@@ -90,6 +95,7 @@ mtext(expression(italic(theta)[2]),side = 1,line=1.5,cex=.8)
 for (i in 1:length(ordre)){
   lines(abscissa[[2]][[ordre[i]]],ordinate[[2]][[ordre[i]]],col=colors[ordre[i]],lwd=lwd)
 }
+mtext(folder,line=-1,cex=.2)
 plot(NA,xlim=c(0,1),ylim=ylim,xaxt="n",yaxt="n",xlab="",ylab="")
 mtext(expression(italic(theta)[3]),side = 1,line=1.5,cex=.8)
 axis(side=1,at=seq(0,1,.2),labels = c(0,"","","","",1))
@@ -181,6 +187,9 @@ print(paste("v-cal        |",mean(mseVI)))
 print(paste("sum-of-trees |",mean(mseTree)))
 
 
+write(paste(paste("None         |",mean(mseRandom)),
+            paste("v-cal        |",mean(mseVI)),
+            paste("sum-of-trees |",mean(mseTree)),sep="\n"), file = paste(output_dir,"borehole_mse_tab.txt",sep=""))
 
 
 

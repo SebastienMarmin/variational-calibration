@@ -6,6 +6,13 @@ results_dir = args[1]
 output_dir = args[2]
 dataset_dir = args[3]
 
+if (length(args)>3) {
+	folder_l1 <-  args[4]
+	folder_lm <-  args[5]
+} else {
+	folder_l1 <-  ""
+	folder_lm <-  ""
+}
 
 
 #library(extrafont)
@@ -55,6 +62,8 @@ axis(1,at = seq(0,1,.2),labels = c("0","0.2","","","0.8","1"))
 axis(2,at = seq(-1.5,1.5,.5),labels = c("-1.5","","","0","","1","1.5"))
 mtext(expression(italic(x)[2]),side = 1,line=1.5)
 mtext(expression(italic(y)),side = 2,line=2.2)
+mtext(folder_l1,line=1,side=1,cex=.2)
+mtext(folder_lm,line=1.2,side=1,cex=.2)
 lines(abscissa_laGP,posteriorMeanY_laGP,col=colNames[1],lwd=lwd,lty=lty[1])
 lines(abscissa_zeroLayer,posteriorMeanY_zeroLayer,col=colNames[2],lwd=lwd,lty=lty[2])
 lines(abscissa_zeroLayer,posteriorMeanY_mulLayer,col=colNames[3],lwd=lwd,lty=lty[3])

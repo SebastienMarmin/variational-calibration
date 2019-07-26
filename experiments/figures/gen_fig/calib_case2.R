@@ -27,6 +27,16 @@ sd_VIcalib  <- as.numeric(c(args[7],args[8], args[9]))
 mean_VIcalib_NA  <- as.numeric(c(args[10],args[11],args[12]))
 sd_VIcalib_NA  <- as.numeric(c(args[13],args[14], args[15]))
 
+if (length(args)>15) {
+	folder_additive <-  args[16]
+	folder_general <-  args[17]
+} else {
+	folder_additive <-  ""
+	folder_general <-  ""
+}
+
+
+
 # load data
 T     <- as.matrix(read.csv(paste(dataset_dir,"T.csv"    ,sep=""),sep=";"))
 XStar <- as.matrix(read.csv(paste(dataset_dir,"XStar.csv",sep=""),sep=";"))
@@ -141,6 +151,8 @@ lines(x_seq,computerModel(matrix(x_seq,ncol=1),L2_calib$theta_L2),col="black")
 points(Xnorm,Y,pch=19,col="black",cex=1.2)
 points(Xnorm,Y,pch=19,col="white",cex=.7)
 mtext(expression(L[2]))
+mtext(folder_additive,line=1,cex=.5)
+mtext(folder_general,line=1.5,cex=.5)
 mtext(expression(italic(y)),side = 2,line = 2,cex=.8)
 # Proj
 plot(NaN,xlim=xlim,ylim = ylim,yaxt="n",xaxt="n")
@@ -226,6 +238,10 @@ print("########## case2 MSE tab")
 print(round(MSE*1000,2))
 
 
+write(capture.output(round(MSE*1000,2)), file = paste(output_dir,"case2_mse_tab.txt",sep=""))
+
+
+
 # Contour
 indices <- c(2,3)
 lims <- c(2,8,1.2,8)
@@ -243,6 +259,8 @@ wi = 3.5
 pdf(paste(output_dir,"posteriorDist.pdf",sep=""),width=wi, height=ratio*wi)
 par(mfrow=c(2,2),mar=c(.1,0.1,1.8,0.1),oma=c(3,3.1,0,.1))
 contour(density_proj,cex.axis=1,asp=1,xaxt="n")
+mtext(folder_additive,side = 1,line = 1,cex=.2)
+mtext(folder_general,side = 1,line = 2,cex=.2)
 points(L2_calib$theta_L2[indices[1]],L2_calib$theta_L2[indices[2]],col="red",pch=19)
 mtext(expression("Projected"))
 mtext(expression(italic(theta)[3]),side = 2,line = 2)

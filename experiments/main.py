@@ -2,6 +2,7 @@ import os, sys
 from os.path import isfile, join
 from os import listdir
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+import subprocess # only for launching the script generating the figures
 
 import argparse
 import numpy as np
@@ -75,6 +76,8 @@ def parse_args():
                         help='Observation noise standard deviation')
     parser.add_argument('--noise_std_obs', type=float, default=0.01,
                         help='Computer run noise standard deviation')
+    parser.add_argument('--discrepancy_level', type=float, default=0.05,
+                        help='From 0 to 1, how much the additive discrepancy should explain the signals\' stddev?')
     parser.add_argument('--iterations_fixed_noise', type=int, default=100,
                         help='Training iteration without noise optimization')
     parser.add_argument('--iterations_free_noise', type=int, default=100,
@@ -286,7 +289,7 @@ def plotCalibDomain(X, XStar, T, Y, Z, model,lower2,upper2,priorMean,priorCovRoo
     
     return tGrid, qThetaExact
 
-def DGP(input_dim,output_dim,nlayers,nfeatures,nmc_train,nmc_test):
+def DGP(input_dim,output_dim,nlayers,nfeatures,nmc_train,nmc_test,mean,scale):
     gp_list = list() # type: List(torch.nn.Module)
     nl = nlayers
     for i in range(nlayers):
@@ -301,6 +304,8 @@ def DGP(input_dim,output_dim,nlayers,nfeatures,nmc_train,nmc_test):
             # Scale factor useful only for the last layer 
             # (because else it is equivalent to the lengthscale of the next GP)
         gp_list += [gp]
+    gp_list[-1].mean = mean # last GP fit the data output mean and variance (equivalent to standardize the data)
+    gp_list[-1].stddevs = scale
     return torch.nn.Sequential(*gp_list)
 
 if __name__ == '__main__':
@@ -327,6 +332,11 @@ if __name__ == '__main__':
     train_data_loader = MultiSpaceBatchLoader(train_obs_loader,train_run_loader)
     test_data_loader  = MultiSpaceBatchLoader(test_obs_loader,  test_run_loader)
 
+    output_mean_run = train_run_loader.dataset.tensors[-1].mean(-2)
+    output_std_run  = train_run_loader.dataset.tensors[-1].mean(-2)
+    output_mean_obs = train_obs_loader.dataset.tensors[-1].var(-2).sqrt()
+    output_std_obs  = train_obs_loader.dataset.tensors[-1].var(-2).sqrt()
+
     dobs = train_data_loader.loaders[0].dataset
     drun = train_data_loader.loaders[1].dataset
     logger.info("Training observation points: {:4d}, in dimension {:3d}.".format(len(dobs),dobs.tensors[0].size(-1)))
@@ -334,15 +344,19 @@ if __name__ == '__main__':
     logger.info("Calibration dimension: {:3d}".format(drun.tensors[1].size(-1)))
 
 
-    eta = DGP(input_dim,output_dim,args.nlayers_run,args.nfeatures_run,args.nmc_train,args.nmc_test)
+    eta = DGP(input_dim,output_dim,args.nlayers_run,args.nfeatures_run,args.nmc_train,args.nmc_test,output_mean_run,output_std_run)
     for gp in list(eta):
         gp.optimize_fourier_features(args.rff_optim_run==1)
     if args.additive == 1:
         dim_delta = input_dim-calib_dim
+        scale_delta = args.discrepancy_level * output_std_obs
+        mean_delta = torch.zeros(output_dim)
     else:
         dim_delta = 1+ input_dim-calib_dim
+        scale_delta = output_std_obs
+        mean_delta = output_mean_obs
     logger.info("Discrepancy input dimension: {:3d}".format(dim_delta))
-    delta = DGP(dim_delta, output_dim,args.nlayers_obs,args.nfeatures_obs,args.nmc_train,args.nmc_test)
+    delta = DGP(dim_delta, output_dim,args.nlayers_obs,args.nfeatures_obs,args.nmc_train,args.nmc_test,mean_delta,output_std_obs)
     for gp in list(delta):
         gp.optimize_fourier_features(args.rff_optim_obs==1)
 
@@ -381,23 +395,26 @@ if __name__ == '__main__':
     if not args.verbose: # already displayed by the creator of trainer with verbose
         logger.info(model.string_parameters_to_optimize())
 
-    trainer.fit(args.iterations_fixed_noise, args.test_interval, 1, time_budget=args.time_budget//2)
-    logger.info("Training finished")
+    #trainer.fit(args.iterations_fixed_noise, args.test_interval, 1, time_budget=args.time_budget//2)
+    #logger.info("Training finished")
 
-
+    logger.info("Start testing")
     test_mnll, test_error = trainer.test()
-
+    logger.info("Testing finished")
     
+
+    """
     results = {}
     for key, value in vars(args).items():
         results[key] = value
+    results['outdir'] = outdir
     results['trainable_parameters'] = model.trainable_parameters
     results['test_mnll'] = float(test_mnll.item())
     results.update(test_error)
     results['total_iters'] = trainer.current_iteration
 
     results["calib_mean"] = tuple((t.item() for t in calib_posterior.mean))
-    results["calib_std"] =  tuple((t.item() for t in calib_posterior.stddevs))
+    results["calib_stddev"] =  tuple((t.item() for t in calib_posterior.stddevs))
 
     
 
@@ -415,7 +432,8 @@ if __name__ == '__main__':
 
     with open(outdir + 'results.json', 'w') as fp:
         json.dump(results, fp, sort_keys=True, indent=4)
-   
+    """
+
 
     """
     eta.optimize(False)

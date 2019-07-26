@@ -12,14 +12,42 @@ class GaussianProcess(BaseLayer, metaclass=abc.ABCMeta):
         super(GaussianProcess, self).__init__(**kwargs)
         self.in_features = in_features
         self.out_features = out_features
-        self.prior_means = Constant(out_features) #  can also be any type of layer, e.g. learnable function  TOTEST
-        self.prior_means.optimize(False)   # can be changed by user but default behavior is to not learn the prior mean
+        self._means = torch.zeros(out_features)# tensor of size [1] (constant mean accross output dim) or [out_features] #  can also be any type of layer, e.g. learnable function, as long as it returns a tensor  TOTEST
+        self._self_means_is_tensor = True
+        
+        
         self.pf = log() # univariate transfo for lengthscale (log) use pf.i() for inverse transfo
         self._lengthscales = nn.Parameter(self.pf(np.sqrt(self.in_features)*.2*torch.ones(in_features)))#nn.Parameter(self.pf(np.sqrt(self.in_features)*.2*torch.ones(in_features)))
         # can be size 1 or size in_features (or TODO? in_features times out_features)
 
         self._stddevs = nn.Parameter(torch.ones(out_features)) # can be size 1 or size out_features
         self.cov_structure = Matern(self.in_features,smoothness=np.Inf)
+
+    @property
+    def mean_function(self):
+        if self._self_means_is_tensor:
+            return (lambda x: self._means)
+        else:
+            M = self._means
+    @mean_function.setter
+    def mean_function(f):
+        self._means = f
+        if issubclass(type(f),torch.Tensor):
+            self._self_means_is_tensor = True
+        else:
+            self._self_means_is_tensor = False
+
+
+    @property
+    def means(self): # may return a function and not a tensor
+        return self._means
+    @means.setter
+    def means(self,x):#tensor #  can also be any type of callable returning a tensor, like layer
+        # e.g. learnable function  TOTEST
+        try:
+            self._means = x
+        except TypeError:
+            self._means = torch.nn.Parameter(x,requires_grad=self._mean.requires_grad)
 
     @property
     def variances(self):
@@ -59,7 +87,7 @@ class GaussianProcess(BaseLayer, metaclass=abc.ABCMeta):
     def kl_divergence(self):
         NotImplementedError("Subclass of CovarianceStructure should implement covariance().")
     @abc.abstractmethod
-    def forward(self, input): # nmc times n times in_features
+    def forward(self, input): 
         NotImplementedError("Subclass of CovarianceStructure should implement covariance().")
     def optimize(self, train: bool = True):
         for param in self.parameters():

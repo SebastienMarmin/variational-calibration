@@ -36,7 +36,7 @@ class FeaturesGaussianProcess(GaussianProcess):
 
     def set_to_posterior(self,X,Y,noise_covariance,output_index=0):
         i = output_index
-        M = self.prior_means(X)
+        M = self.mean_function(X)
         Yc = Y - M[...,i]
         Phi = self.activation(X)
         prior_std = self.stddevs
@@ -56,11 +56,9 @@ class FeaturesGaussianProcess(GaussianProcess):
         self.W.set_column_covariances(L,i,root=True)
         
 
-
-
     def forward(self,input):
         nmc = self.nmc
-        m = self.prior_means(input)
+        m = self.mean_function(input)
         Phi = self.activation(input)
         if self.local_reparam:
             F = self.W.lrsample(Phi)
