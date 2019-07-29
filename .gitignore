@@ -11,6 +11,11 @@ events.out.tfevents.*
 # CSV
 *csv
 
+#Test pdf
+tests/*.pdf
+experiments/*.pdf
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

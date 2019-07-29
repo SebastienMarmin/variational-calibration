@@ -271,7 +271,7 @@ if __name__ == '__main__':
     logger.info("Inference time on entire test set (90 percentile): %.4f ms" % (np.percentile(times, 0.90)))
     results['inference_times'] = times.tolist()
     logger.info('Benchmarking done')
-
+    """
     for key, value in vars(args).items():
         results[key] = value
     results['trainable_parameters'] = model.trainable_parameters
@@ -280,6 +280,4 @@ if __name__ == '__main__':
     results['total_iters'] = trainer.current_iteration
     with open(outdir + 'results.json', 'w') as fp:
         json.dump(results, fp, sort_keys=True, indent=4)
-
-    import torch.nn as nn
-
+    """
