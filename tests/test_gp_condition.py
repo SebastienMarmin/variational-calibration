@@ -13,10 +13,8 @@ if __name__ == '__main__':
     nmc_test  = 10
     input_dim = 2
     output_dim = 1
-    n = 10
-    eta   = GP(input_dim,output_dim,nfeatures=800, nmc_train=nmc_train, nmc_test=nmc_test)
-    print(eta.lengthscales)
-    eta.optimize(False)
+    n = 8
+    eta   = GP(input_dim,output_dim,nfeatures=100, nmc_train=nmc_train, nmc_test=nmc_test,full_cov_W = True)
 
     inp = torch.rand(n,input_dim)
     out = torch.randn(n,output_dim)
@@ -26,4 +24,5 @@ if __name__ == '__main__':
     for i in range(eta.nmc):
         plt.plot(out_pred[i,:,0].detach().numpy(),out[:,0].numpy())
     plt.plot([-2,2],[-2,2])
+    plt.title("Everything should be close to identity line")
     plt.show()

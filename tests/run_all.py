@@ -19,4 +19,4 @@ for exe_file in exe_files:
 
 pdf_files = glob.glob('./*.py')
 for pdf_file in pdf_files:
-    subprocess.run([pdf_viewer,pdf_files])
+    subprocess.run([pdf_viewer,pdf_file])

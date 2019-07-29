@@ -50,10 +50,11 @@ class FeaturesGaussianProcess(GaussianProcess):
         # infere beta : Yc = Phi beta + eps
         # Lambda: prior in eps; mu and Gamma: prior on beta
         meaRp = self.W.loc.data.clone().detach()
-        meaRp[:,0] = meanBeta
+        meaRp[:,i] = meanBeta
         self.W.loc.data = meaRp
         L = torch.cholesky(covBeta,upper=False).detach()
         self.W.set_column_covariances(L,i,root=True)
+
         
 
     def forward(self,input):
