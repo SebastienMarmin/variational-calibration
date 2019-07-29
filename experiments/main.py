@@ -70,7 +70,7 @@ def parse_args():
     parser.add_argument('--outdir', type=str,
                         default='workspace/',
                         help='Output directory base path',)
-    parser.add_argument('--seed', type=int, default=2018,
+    parser.add_argument('--seed', type=int, default=0,
                         help='Random seed',)
     parser.add_argument('--noise_std_run', type=float, default=0.01,
                         help='Observation noise standard deviation')
@@ -289,14 +289,14 @@ def plotCalibDomain(X, XStar, T, Y, Z, model,lower2,upper2,priorMean,priorCovRoo
     
     return tGrid, qThetaExact
 
-def DGP(input_dim,output_dim,nlayers,nfeatures,nmc_train,nmc_test,mean,scale):
+def DGP(input_dim,output_dim,full_cov_W,nlayers,nfeatures,nmc_train,nmc_test,mean,scale):
     gp_list = list() # type: List(torch.nn.Module)
     nl = nlayers
     for i in range(nlayers):
         # Layer widths given by trapezoidal interpolation
         d_in = int((1-i/nl)*input_dim + i/nl*output_dim)
         d_out = int((1-(i+1)/nl)*input_dim + (i+1)/nl*output_dim)
-        gp   = GP(d_in,d_out,nfeatures=nfeatures, nmc_train=nmc_train, nmc_test=nmc_test)
+        gp   = GP(d_in,d_out,nfeatures=nfeatures, nmc_train=nmc_train, nmc_test=nmc_test,full_cov_W=full_cov_W)
         gp.variances   = torch.ones(1) # TODO remove lines
         gp.lengthscales   = .3*torch.ones(1)
         if i<nlayers-1:
@@ -344,7 +344,7 @@ if __name__ == '__main__':
     logger.info("Calibration dimension: {:3d}".format(drun.tensors[1].size(-1)))
 
 
-    eta = DGP(input_dim,output_dim,args.nlayers_run,args.nfeatures_run,args.nmc_train,args.nmc_test,output_mean_run,output_std_run)
+    eta = DGP(input_dim,output_dim,args.full_cov_W,args.nlayers_run,args.nfeatures_run,args.nmc_train,args.nmc_test,output_mean_run,output_std_run)
     for gp in list(eta):
         gp.optimize_fourier_features(args.rff_optim_run==1)
     if args.additive == 1:
@@ -356,7 +356,7 @@ if __name__ == '__main__':
         scale_delta = output_std_obs
         mean_delta = output_mean_obs
     logger.info("Discrepancy input dimension: {:3d}".format(dim_delta))
-    delta = DGP(dim_delta, output_dim,args.nlayers_obs,args.nfeatures_obs,args.nmc_train,args.nmc_test,mean_delta,output_std_obs)
+    delta = DGP(dim_delta, output_dim,args.full_cov_W,args.nlayers_obs,args.nfeatures_obs,args.nmc_train,args.nmc_test,mean_delta,output_std_obs)
     for gp in list(delta):
         gp.optimize_fourier_features(args.rff_optim_obs==1)
 

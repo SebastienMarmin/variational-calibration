@@ -72,7 +72,10 @@ class GaussianProcess(BaseLayer, metaclass=abc.ABCMeta):
 
     def fix_hyperparameters(self):
         self._lengthscales.requires_grad = False
-        self.prior_means.optimize(False)
+        try:
+            self.means.optimize(False)
+        except AttributeError:
+            self.means.requires_grad = False
         self._stddevs.requires_grad = False
     @abc.abstractmethod
     def reset_parameters(self):

@@ -80,7 +80,7 @@ class FourierFeaturesGaussianProcess(FeaturesGaussianProcess):
         #distrW = 'full_covariance_matrix_gaussian' if self.full_cov_W else 'fully_factorized_matrix_gaussian'
         d1 = self.nfeatures_W
         d2 = self.out_features
-        self.W = GaussianMatrix(d1,d2,dependent_rows=True)# full cov
+        self.W = GaussianMatrix(d1,d2,dependent_rows=self.full_cov_W)# full cov
         self.W_prior = GaussianMatrix(d1,d2,same_col_cov=True,same_row_cov=True,centered=True,parameter=False)
         #self.W_prior.optimize(False)
         self.Omega = nn.Parameter(self.cov_structure.sample_spectrum(self.nfeatures),requires_grad=False)
@@ -92,7 +92,7 @@ class FourierFeaturesGaussianProcess(FeaturesGaussianProcess):
         self.sqrt_nfeatures = np.sqrt(self.nfeatures)
         d1 = self.nfeatures_W
         d2 = self.out_features
-        self.W = GaussianMatrix(d1,d2,dependent_rows=True)
+        self.W = GaussianMatrix(d1,d2,dependent_rows=self.full_cov_W)
         self.W_prior =GaussianMatrix(d1,d2,same_col_cov=True,same_row_cov=True,centered=True,parameter=False)
         self.W.optimize(W_optim_status)
         self.Omega.data = self.cov_structure.sample_spectrum(self.nfeatures)

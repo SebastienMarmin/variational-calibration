@@ -222,13 +222,13 @@ if __name__ == '__main__':
     model.likelihood.stddevs = scale_factor*args.noise_std
     # TODO more user friedndl
     gp = list(model.layers)[0]
-    gp.prior_means.values.data = list(train_dataloader.datasets)[0].tensors[1].mean(0)
-    gp.variances =  scale_factor**2
+    gp.means = list(train_dataloader.datasets)[0].tensors[1].mean(0)
+    gp.variances =  (scale_factor)**2
     gp.lengthscales = 0.05*ones_like(gp.lengthscales)
-    #gp.full_cov_W = True
+    gp.full_cov_W = args.full_cov_W==1
     
     gp.reset_parameters()
-    gp.set_to_prior()
+    gp.set_to_prior()    # not necessary, just to show the functionality
     gp.fix_hyperparameters()
 
     
@@ -276,7 +276,7 @@ if __name__ == '__main__':
         results[key] = value
     results['trainable_parameters'] = model.trainable_parameters
     results['test_mnll'] = float(test_mnll.item())
-    results['test_error'] = float(test_error.item())
+    results['test_error'] = (test_error)
     results['total_iters'] = trainer.current_iteration
     with open(outdir + 'results.json', 'w') as fp:
         json.dump(results, fp, sort_keys=True, indent=4)
