@@ -77,7 +77,7 @@ if __name__ == "__main__":
                                 print(combination)
                                 meanW,varW,_=regress_linear(Phi,Y,Lambda=None,Gamma=None,mu=mu,Lambda_inversed=Lambda_inversed,Gamma_inversed=Gamma_inversed,Lambda_rooted=Lambda_rooted,Gamma_rooted=Gamma_rooted)
 
-                                axialPre=100
+                                axialPre=40
                                 x = torch.linspace(0,1,axialPre).unsqueeze(1)
                                 spTest = torch.mm(x, Omega)
                                 PhiTest= sigma/np.sqrt(NRFs)*torch.cat((spTest.sin(),spTest.cos()),1)

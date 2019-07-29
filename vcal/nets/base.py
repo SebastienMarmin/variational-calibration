@@ -57,7 +57,8 @@ class BaseNet(torch.nn.Module):
             print(input_rep.size())
         else:
             input_rep = input
-        if torch.cuda.is_available() and torch.cuda.device_count() > 1:
+        if torch.cuda.is_available() and torch.cuda.device_count() > 1 and not str(input_rep.device)=="cpu":
+            #TODO check, no str()
             return torch.nn.parallel.data_parallel(self.layers, inputs=input_rep, dim=1)
         else:
             return self.layers(input_rep)
