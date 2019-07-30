@@ -73,12 +73,19 @@ class FeaturesGaussianProcess(GaussianProcess):
         
 
 
+@torch.jit.script
+def rff_activation(SP):
+    SP_sin = SP.sin()
+    SP_cos = SP.cos()
+    return torch.cat((SP_sin,SP_cos),-1)
+
+
         
         
 class FourierFeaturesGaussianProcess(FeaturesGaussianProcess):
     def __init__(self, in_features, out_features, **kwargs):
         super(FourierFeaturesGaussianProcess, self).__init__(in_features, out_features, **kwargs)
-        self.Phi_fun = lambda input: torch.cat((input.sin(),input.cos()),-1)
+        #self.Phi_fun = lambda input: torch.cat((input.sin(),input.cos()),-1)
         self.nfeatures_W = 2*self.nfeatures
         self.sqrt_nfeatures = np.sqrt(self.nfeatures)
         #distrW = 'full_covariance_matrix_gaussian' if self.full_cov_W else 'fully_factorized_matrix_gaussian'
@@ -100,10 +107,15 @@ class FourierFeaturesGaussianProcess(FeaturesGaussianProcess):
         self.W_prior =GaussianMatrix(d1,d2,same_col_cov=True,same_row_cov=True,centered=True,parameter=False)
         self.W.optimize(W_optim_status)
         self.Omega.data = self.cov_structure.sample_spectrum(self.nfeatures)
-
+   
+    #@torch.jit.script_method
     def activation(self,X):
         SP = matmul(X/self.lengthscales,self.Omega)
-        return self.Phi_fun(SP)/self.sqrt_nfeatures
+        #SP_sin = SP.sin()
+        #SP_cos = SP.cos()
+        Phi_fun  = rff_activation(SP)#torch.cat((SP_sin,SP_cos),-1)
+        #return self.Phi_fun(SP)/self.sqrt_nfeatures
+        return Phi_fun/self.sqrt_nfeatures
     
     def fix_hyperparameters(self):
         super(FourierFeaturesGaussianProcess, self).fix_hyperparameters()

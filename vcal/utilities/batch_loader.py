@@ -13,7 +13,6 @@ class MultiSpaceBatchLoader(object):
         self.one_over_n = [1/n for n in self.dataset_sizes]
 
     def setup_iterable(self):
-        print("one setup")
         if self.cycle:
             iter_load_list = [cycle(iter(l)) for l in  self.loaders[:-1]]+[iter(self.loaders[-1])]
             it = zip(*tuple(iter_load_list))
