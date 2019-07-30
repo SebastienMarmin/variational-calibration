@@ -426,7 +426,7 @@ if __name__ == '__main__':
 
         theta_hat = calib_posterior.mean.unsqueeze(-2).expand(xx.size(-2),-1)
         model.eval()
-        Y_mean = model.phenomenon(xx,theta_hat)
+        Y_mean = model.phenomenon(xx.to(theta_hat.device),theta_hat)
         results["y_mean"] =  tuple((y.item() for y in Y_mean))
 
 
