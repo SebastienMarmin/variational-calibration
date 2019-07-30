@@ -698,7 +698,6 @@ class GaussianMatrix(torch.nn.Module):
         elif self.all_dependent:
             eps = _standard_normal(shape[:-2]+torch.Size((self.ncol*self.nrow,1)), dtype=self.loc.dtype, device=self.loc.device)
             Leps = blockmatmul(self,eps,inv=False,X_event_shape=False)
-            print(Leps.size())
             return self.loc + Leps.view(shape)#self.LvectX(eps,is_vectorised=True)
         else:
             d1 = self.nrow
@@ -807,7 +806,13 @@ class GaussianMatrix(torch.nn.Module):
         H = 0.5 * self.nrow*self.col * (1.0 + log2) + .5*log_det
         return H
 
-
+    def tensors_to(self,*args,**kwargs):# put to device tensors that are not nn.Parameter
+        if not isinstance(self.loc,torch.nn.Parameter):
+            self.loc = self.loc.to(*args,**kwargs)
+        if not isinstance(self.scale,torch.nn.Parameter):
+            self.scale = self.scale.to(*args,**kwargs)
+    # What is bette? This function or put a nn.Parameter status to tensors who should never be optimized (the flag requires_grad must be always false) 
+                    
 
 class GaussianVector(GaussianMatrix):
     def __init__(self,*dim,dependent = False,iid=False,constant_mean=None,centered = False,stddev=1.0,parameter=True):

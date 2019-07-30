@@ -108,6 +108,10 @@ class CalibrationNet(BaseNet,metaclass=ABCMeta):
             return self.give_discrepancy_child_input_output(X,Z_Xtheta.mean(0),Y)
     
 
+    def tensors_to(self,*args,**kwargs):# put to device tensors that are not nn.Parameter
+        if self.true_calib is not None:
+            self.true_calib = self.true_calib.to(*args,**kwargs)
+    
 class AdditiveDiscrepancy(CalibrationNet):
         def __init__(self,*args,**kwargs):
             super(AdditiveDiscrepancy, self).__init__(*args,**kwargs)

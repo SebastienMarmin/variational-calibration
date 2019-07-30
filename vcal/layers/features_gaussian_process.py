@@ -18,7 +18,7 @@ class FeaturesGaussianProcess(GaussianProcess):
             self.nfeatures = nfeatures
         self.full_cov_W = full_cov_W
         self.local_reparam = True
-        # subclass must define self.W and self.W_prior, instances of matrixGaussian distrib
+        # subclass must define self.W and self.W_prior, instances of GaussianMatrix distrib
     def reset_parameters(self):
         NotImplementedError("Subclass of CovarianceStructure should implement covariance().")
 
@@ -70,8 +70,11 @@ class FeaturesGaussianProcess(GaussianProcess):
 
     def kl_divergence(self):
          return kl_divergence(self.W, self.W_prior)
+        
 
 
+        
+        
 class FourierFeaturesGaussianProcess(FeaturesGaussianProcess):
     def __init__(self, in_features, out_features, **kwargs):
         super(FourierFeaturesGaussianProcess, self).__init__(in_features, out_features, **kwargs)
@@ -110,3 +113,4 @@ class FourierFeaturesGaussianProcess(FeaturesGaussianProcess):
         self.Omega.requires_grad = optim
         if optim:
             self._lengthscales = False
+
