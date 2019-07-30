@@ -270,8 +270,8 @@ if __name__ == '__main__':
     noise_std_run = 0.01
     noise_std_obs = 0.03
 
-    eta   = GP(input_dim,           1,nfeatures=nfeatures_run, nmc_train=nmc_train, nmc_test=nmc_test)
-    delta = GP(input_dim-calib_dim, 1,nfeatures=nfeatures_obs, nmc_train=nmc_train, nmc_test=nmc_test)
+    eta   = GP(input_dim,           1,full_cov_W = True, nfeatures=nfeatures_run, nmc_train=nmc_train, nmc_test=nmc_test)
+    delta = GP(input_dim-calib_dim, 1,full_cov_W = True ,nfeatures=nfeatures_obs, nmc_train=nmc_train, nmc_test=nmc_test)
     eta.variances   = 1  *torch.ones(1)
     delta.variances = .05*torch.ones(1)
     eta.lengthscales   = .8*torch.ones(1)

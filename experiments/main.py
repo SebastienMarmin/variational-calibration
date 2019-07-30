@@ -7,6 +7,7 @@ import subprocess # only for launching the script generating the figures
 import argparse
 import numpy as np
 import torch
+torch.set_num_threads(32) 
 from torch.utils.data import DataLoader, TensorDataset
 from torch.utils.data.dataset import random_split
 #from collections import OrderedDict
@@ -395,15 +396,15 @@ if __name__ == '__main__':
     if not args.verbose: # already displayed by the creator of trainer with verbose
         logger.info(model.string_parameters_to_optimize())
 
-    #trainer.fit(args.iterations_fixed_noise, args.test_interval, 1, time_budget=args.time_budget//2)
-    #logger.info("Training finished")
+    trainer.fit(args.iterations_fixed_noise, args.test_interval, 1, time_budget=args.time_budget//2)
+    logger.info("Training finished.")
 
-    logger.info("Start testing")
+    logger.info("Start testing.")
     test_mnll, test_error = trainer.test()
-    logger.info("Testing finished")
+    logger.info("Testing finished.")
     
 
-    """
+    
     results = {}
     for key, value in vars(args).items():
         results[key] = value
@@ -432,58 +433,4 @@ if __name__ == '__main__':
 
     with open(outdir + 'results.json', 'w') as fp:
         json.dump(results, fp, sort_keys=True, indent=4)
-    """
-
-
-    """
-    eta.optimize(False)
-    delta.optimize(False)    
-    calib_posterior.cov.parameter.requires_grad = False
-    for p in model.likelihood.parameters():
-        p.requires_grad=False    
-    logger.info(model.string_parameters_to_optimize())
-    def perturbation(m):
-        m.calib_posterior.loc.data = torch.ones(1,1)*torch.randn(1).item()*.5+.5
-        return m
-    trainer.multistart(perturbation,300,nstarts=2)
-
-    eta.optimize(True)
-    delta.optimize(True)    
-    calib_posterior.optimize(True)    
-    logger.info(model.string_parameters_to_optimize())
-
-    #trainer.optimizer.lr = 10e-16
-    trainer.fit(args.iterations_fixed_noise, args.test_interval, 1, time_budget=args.time_budget//2)
-    for p in model.likelihood.parameters():
-        p.requires_grad=False
-    logger.info(model.string_parameters_to_optimize())
-    trainer.fit(args.iterations_free_noise, args.test_interval, 1, time_budget=args.time_budget//2)
-
-    trainer.multistart(perturbation,300,nstarts=2)
-    """
-
-    # Figure
-    """    
-    X, Y = next(iter(test_obs_loader))
-    X_star, T, Z = next(iter(test_run_loader))
-
-    axialPre = 50
-    D1 = input_dim - calib_dim
-    D2 = calib_dim
-    lower1 = (-0*torch.ones(D1));upper1 = (1*torch.ones(D1))
-    lower2 = torch.min(T,0)[0].data;upper2 = torch.max(T,0)[0].data
-    gr = giveGrid(axialPre,1,lower2,upper2)
-    res = torch.zeros(axialPre)
-    theta_opt = calib_posterior.loc.data.detach().clone()
-
-    for i in range(axialPre):
-        t = gr[i]
-        model.calib_posterior.mean = t.expand([1,1])
-        res[i] = trainer.compute_loss_test()
-    plt.plot(gr.numpy(),res.numpy())
-    plt.plot([true_calib[0].numpy(),true_calib[0].numpy()],[res.min(),res.max()],color="red")
-    plt.show()
-    calib_posterior.loc.data = theta_opt
-
-    tGrid, qTheta  = plotCalibDomain(X.data, X_star.data, T.data, Y.data, Z.data, model,lower2,upper2,calib_prior.loc.data,calib_prior.covariance_matrix,true_calib,axialPre)
-    """
+    logger.info("Results saved.")

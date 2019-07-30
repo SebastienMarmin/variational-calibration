@@ -48,7 +48,6 @@ class Trainer(object):
         self.device = device
         self.model = model.to(self.device, non_blocking=True)  # type: Union[nn.Module, BaseBayesianNet]
 
-
         logger.info(self.model.string_parameters_to_optimize())
         logger.info('Total: %s' % model.trainable_parameters)
 

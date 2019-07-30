@@ -33,13 +33,13 @@ def setup_queue(q: queue.Queue, n_gpus: int, jobs_per_gpus: int):
 
 def worker(q: queue.Queue, command, **kwargs):
     gpu = q.get()
-
+    gpu += 1
     command = 'CUDA_VISIBLE_DEVICES=%d ' % gpu + command
     for key, value in kwargs.items():
         command += ' --%s %s ' % (key, value)
     command += '--cuda'
+    print(command)
     os.system(command)
-
     q.put(gpu)
 
 

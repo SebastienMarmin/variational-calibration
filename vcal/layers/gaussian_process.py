@@ -12,7 +12,7 @@ class GaussianProcess(BaseLayer, metaclass=abc.ABCMeta):
         super(GaussianProcess, self).__init__(**kwargs)
         self.in_features = in_features
         self.out_features = out_features
-        self._means = torch.zeros(out_features)# tensor of size [1] (constant mean accross output dim) or [out_features] #  can also be any type of layer, e.g. learnable function, as long as it returns a tensor  TOTEST
+        self._means = nn.Parameter(torch.zeros(out_features),requires_grad=False)# tensor of size [1] (constant mean accross output dim) or [out_features] #  can also be any type of layer, e.g. learnable function, as long as it returns a tensor  TOTEST
         self._self_means_is_tensor = True
         
         

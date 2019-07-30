@@ -8,6 +8,8 @@ from typing import Union
 
 
 from ..layers import BaseLayer
+from ..stats import GaussianMatrix
+
 
 import logging
 logger = logging.getLogger(__name__)
@@ -54,7 +56,6 @@ class BaseNet(torch.nn.Module):
     def forward(self, input,input_nmc_rep=True):
         if input_nmc_rep:
             input_rep = input.expand(torch.Size([self.nmc])+input.size())
-            print(input_rep.size())
         else:
             input_rep = input
         if torch.cuda.is_available() and torch.cuda.device_count() > 1 and not str(input_rep.device)=="cpu":
@@ -96,3 +97,14 @@ class BaseNet(torch.nn.Module):
             if p.requires_grad:
                 info_para += '\n {:10} {:45} : {:6d} {:.12}'.format("",name,(p.numel()),str(list(p.shape)))
         return info_para
+    
+    
+    def to(self,*args, **kwargs):
+        for mod in self.modules():
+            if issubclass(type(mod),GaussianMatrix):
+                mod.tensors_to(*args, **kwargs)
+        try:
+            self.tensors_to(*args, **kwargs)
+        except AttributeError:
+            pass
+        return super().to(*args, **kwargs)
