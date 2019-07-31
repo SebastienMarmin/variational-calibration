@@ -39,7 +39,8 @@ def make():
     results_folder = scriptpath+"results/"
     gen_fig_folder = scriptpath+"figures/gen_fig/"
     output_folder = scriptpath+"figures/"
-    data_set_folder = "/home/sebastien/Datasets/"
+    data_set_folder = "~/Datasets/"
+
 
     ############ Nevada ################
     dataset_name = "calib_nevada"
@@ -70,6 +71,7 @@ def make():
 
     # build graph
     command = ["Rscript",gen_fig_path, results_path, output_folder,dataset_path]+[*folder_shallow]+[*folder_deep]
+    print("Excecute :"+" ".join(command))
     subprocess.run(command)
 
 
@@ -86,6 +88,7 @@ def make():
     mean_list = [str(p) for p in tuple(*df["calib_mean"])]
     sd_list =  [str(p) for p in tuple(*df["calib_stddev"])]
     command = ["Rscript",gen_fig_path, results_path, output_folder,dataset_path]+mean_list+sd_list+[*folder]
+    print("Excecute :"+" ".join(command))
     subprocess.run(command)
 
 
@@ -100,7 +103,8 @@ def make():
     df_additive =  df[df["additive"]==1]
     df_general  =  df[df["additive"]==0]
 
-
+    print("ll")
+    print(df["additive"])
     youngest_run_additive_indx = int(df_additive["birth_time"].idxmax(0))
     youngest_run_general_indx    = int(df_general["birth_time"].idxmax(0))
     youngest_run_additive = df[df.index.values==youngest_run_additive_indx]
@@ -114,9 +118,11 @@ def make():
     mean_list_NA = [str(p) for p in tuple(*youngest_run_general["calib_mean"])]
     sd_list_NA =  [str(p) for p in  tuple(*youngest_run_general["calib_stddev"])]
     command = ["Rscript",gen_fig_path, results_path, output_folder,dataset_path]+mean_list+sd_list+mean_list_NA+sd_list_NA+[*folder_additive]+[*folder_general]
-
+    print("Excecute :"+" ".join(command))
     subprocess.run(command)
 
+make()
+"""
 import time
 from datetime import datetime, timedelta
 t0 = datetime.now()
@@ -137,3 +143,4 @@ while t <tf:
             f.write('0')
     time.sleep(period.seconds)
     
+"""

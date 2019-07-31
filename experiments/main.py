@@ -298,8 +298,6 @@ def DGP(input_dim,output_dim,full_cov_W,nlayers,nfeatures,nmc_train,nmc_test,mea
         d_in = int((1-i/nl)*input_dim + i/nl*output_dim)
         d_out = int((1-(i+1)/nl)*input_dim + (i+1)/nl*output_dim)
         gp   = GP(d_in,d_out,nfeatures=nfeatures, nmc_train=nmc_train, nmc_test=nmc_test,full_cov_W=full_cov_W)
-        gp.variances   = torch.ones(1) # TODO remove lines
-        gp.lengthscales   = .3*torch.ones(1)
         if i<nlayers-1:
             gp._stddevs.requires_grad = False
             # Scale factor useful only for the last layer 
@@ -386,7 +384,7 @@ if __name__ == '__main__':
     init_batchsize_run = min(args.init_batchsize,npts_run)
     init_data_run,_=random_split(train_data_loader.loaders[1].dataset,[init_batchsize_run,npts_run-init_batchsize_run])
     dataloader_run_for_init=SingleSpaceBatchLoader(DataLoader(init_data_run,batch_size=init_batchsize_run),cat_inputs=True)
-    scale_factor = 1 # TODO
+    scale_factor = (output_std_run**2).mean().sqrt().item()
     computer_model_initializer=IBLMInitializer(computer_model,dataloader_run_for_init,noise_var =0.01*scale_factor)
     computer_model_initializer.initialize()
     
@@ -434,3 +432,4 @@ if __name__ == '__main__':
     with open(outdir + 'results.json', 'w') as fp:
         json.dump(results, fp, sort_keys=True, indent=4)
     logger.info("Results saved.")
+    logger.info("\n---- RUN ["+outdir+"] FINISHED ----\n\n\n")

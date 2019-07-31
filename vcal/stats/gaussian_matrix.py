@@ -552,7 +552,7 @@ class GaussianMatrix(torch.nn.Module):
 
     def get_variances(self,expand_rows=False,expand_cols=False,root=False):
         if self.all_independent:
-            V = self.scale if root else self.scale**2 
+            V = self.scale.abs() if root else self.scale**2 
             gvs = V.shape[:-2]
         else:
             v = (tril(self.scale)**2).sum(-1)
@@ -577,7 +577,7 @@ class GaussianMatrix(torch.nn.Module):
         if self.all_independent:
             index_c = 0 if self.scale.size(-1)==1 else index
             sc = self.scale[...,:,index_c].unsqueeze(-1)
-            C =  sc if root else sc**2
+            C =  sc.abs() if root else sc**2
         elif self.only_row_dep:
             index_c = 0 if self.scale.size(-3)==1 else index
             L = tril(self.scale[...,index_c,:,:])
@@ -694,7 +694,7 @@ class GaussianMatrix(torch.nn.Module):
         shape = self._extended_shape(sample_shape)
         if self.all_independent:
             eps = _standard_normal(shape, dtype=self.loc.dtype, device=self.loc.device)
-            return self.loc + eps*self.scale.expand(self.event_shape) # expand do nothing if not same_col_dist
+            return self.loc + eps*self.scale.expand(self.event_shape) # non need to apply .abs() # expand do nothing if not same_col_dist
         elif self.all_dependent:
             eps = _standard_normal(shape[:-2]+torch.Size((self.ncol*self.nrow,1)), dtype=self.loc.dtype, device=self.loc.device)
             Leps = blockmatmul(self,eps,inv=False,X_event_shape=False)

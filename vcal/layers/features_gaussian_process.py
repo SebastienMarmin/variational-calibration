@@ -111,9 +111,10 @@ class FourierFeaturesGaussianProcess(FeaturesGaussianProcess):
     #@torch.jit.script_method
     def activation(self,X):
         SP = matmul(X/self.lengthscales,self.Omega)
-        #SP_sin = SP.sin()
-        #SP_cos = SP.cos()
-        Phi_fun  = rff_activation(SP)#torch.cat((SP_sin,SP_cos),-1)
+        SP_sin = SP.sin()
+        SP_cos = SP.cos()
+        #Phi_fun  = rff_activation(SP)
+        Phi_fun = torch.cat((SP_sin,SP_cos),-1)
         #return self.Phi_fun(SP)/self.sqrt_nfeatures
         return Phi_fun/self.sqrt_nfeatures
     

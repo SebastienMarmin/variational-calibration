@@ -24,6 +24,7 @@ if (length(args)>9) {
 
 axialPre <- 150
 x <- seq(0,1,length.out =  axialPre)
+
 p_VIcalib1 <- dnorm(x,mean = mean_VIcalib[1],sd=sd_VIcalib[1])
 p_VIcalib2 <- dnorm(x,mean = mean_VIcalib[2],sd=sd_VIcalib[2])
 p_VIcalib3 <- dnorm(x,mean = mean_VIcalib[3],sd=sd_VIcalib[3])
