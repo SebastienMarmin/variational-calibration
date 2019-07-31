@@ -15,8 +15,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-# TODO: zoe has the previous version installed
-
 from torch.utils import hooks as hooks
 from torch.utils.data import DataLoader
 

@@ -2,8 +2,7 @@ import torch
 from torch import tril, matmul
 from .utilities import _standard_normal
 
-log2pi = 1.83787706640934533908193770912475883960723876953125
-
+log2pi = 1.83787706640934533918
 
 def L1_inv_L2_frob(W1, W2):
     B = W2.scale if W2.all_independent else tril(W2.scale)
@@ -452,14 +451,14 @@ class GaussianMatrix(torch.nn.Module):
         d1 = self.nrow
         d2 = self.ncol
         batch_shape = self.batch_shape
-        if self.all_independent:# keep only the variances # TODO warning
+        if self.all_independent:# keep only the variances
             if is_cov:
                 V = torch.diagonal(L,dim1=-1,dim2 = -2)
             else:
                 V = (tril(L)**2).sum(-1)
             scale = V.expand(*batch_shape,d1*d2).view(*batch_shape,d1,d2)
         elif self.only_col_dep:
-            if d1>1:# keep only the col cov # TODO warning
+            if d1>1:# keep only the col cov
                 if is_cov:
                     full_cov = L
                 else:
@@ -474,7 +473,7 @@ class GaussianMatrix(torch.nn.Module):
                     lt = L
                 scale = lt.unsqueeze(-3).expand(*batch_shape,1,d2,d2)
         elif self.only_row_dep:
-            if d2>1:# keep only the col cov # TODO warning
+            if d2>1:# keep only the row cov
                 if is_cov:
                     full_cov = L
                 else:
@@ -547,7 +546,7 @@ class GaussianMatrix(torch.nn.Module):
         try:
             self.scale = scale.detach()
         except TypeError:
-            self.scale = torch.nn.Parameter(scale.detach(),requires_grad=self.scale.requires_grad)# TODO is detach necessary?
+            self.scale = torch.nn.Parameter(scale,requires_grad=self.scale.requires_grad)
 
 
     def get_variances(self,expand_rows=False,expand_cols=False,root=False):
@@ -622,7 +621,7 @@ class GaussianMatrix(torch.nn.Module):
         try:
             self.scale = scale.detach()
         except TypeError:
-            self.scale = torch.nn.Parameter(scale.detach(),requires_grad=self.scale.requires_grad)# TODO is detach necessary?
+            self.scale = torch.nn.Parameter(scale,requires_grad=self.scale.requires_grad)
 
 
 

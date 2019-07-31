@@ -15,34 +15,33 @@ def regress_linear(X,Y,Lambda=None,Gamma=None,mu=None,Lambda_inversed=False,Gamm
     # Lambda_inversed/Gamma_inversed: boolean telling if Lambda and Gamma are inversed (i.e. as precision matrix)
     # Lambda_rooted/Gamma_rooted: boolean telling if Lambda and Gamma are provided as a lower triangular covariance/precision root (or (inverse) standard deviations in diagonal/homoscedastic cases)
     if Lambda is None:
-        Lambda = torch.tensor([[.1]]).type(X.type())
+        Lambda = torch.tensor([[.1]],dtype = X.dtype,device=X.device)
         Lambda_inversed = False
         Lambda_rooted = False
-    elif isinstance(Lambda,float) or isinstance(Lambda,int):
-        Lambda = Lambda * torch.ones(1,1).type(X.type())
+    elif isinstance(Lambda,(float,int)):
+        Lambda = Lambda * torch.ones(1,1,dtype=X.dtype,device=X.device)
     if Gamma is None:
-        Gamma = torch.tensor([[1.0]]).type(X.type())
+        Gamma = torch.tensor([[1.0]],dtype=X.dtype,device=X.device)
         Gamma_inversed = False
         Gamma_rooted = False
-    elif isinstance(Gamma,float) or isinstance(Gamma,int):
-        Gamma = Gamma * torch.ones(1,1).type(X.type())
+    elif isinstance(Gamma,(float,int)):
+        Gamma = Gamma * torch.ones(1,1,dtype=X.dtype,device=X.device)
 
-    
-    if mu is not None:
-        lemu = mu.shape[-1]
         
-    p = X.shape[-1]
-    Xt = X.transpose(-1,-2)
+    p = X.size(-1)
+    
     if Lambda.size(-1)==1:# Lambda detected as diagonal
         Lambda_sq = Lambda.squeeze(-1)
+        Xt = X.transpose(-1,-2)
         if Lambda_rooted:
             Lambda_r = Lambda_sq # *_M1 means "inverse of *"
             if Lambda_inversed:
                 Lambda_r_M1 = Lambda_r
             else:
                 Lambda_r_M1 = 1/Lambda_r
-            Phit = Xt*Lambda_r_M1 #Xt_LambdaM1_X = LambdaM1*Xt.mm(X)
+            Phit = Xt*Lambda_r_M1.unsqueeze(-2) #Xt_LambdaM1_X = LambdaM1*Xt.mm(X)
             Lambda_r_MY = Lambda_r_M1*Y #Xt_LambdaM1_X = LambdaM1*Xt.mm(X)
+            Phi = Phit.transpose(-1,-2)
         else:
             if Lambda_inversed:
                 Lambda_M1 = Lambda_sq
@@ -53,19 +52,20 @@ def regress_linear(X,Y,Lambda=None,Gamma=None,mu=None,Lambda_inversed=False,Gamm
         if Lambda_rooted:
             if Lambda_inversed:
                 Lambda_r_M1 = Lambda
-                Phit = Xt.mm(Lambda_r_M1.t(-1,-2))
+                Phi = Lambda_r_M1.mm(X)
                 Lambda_r_MY = Lambda.mv(Y)
-            if not Lambda_inversed:
-                Phit = torch.triangular_solve(X,Lambda,upper=False, transpose=False).transpose(-1,-2) # TODO handle upper
-                Lambda_r_MY = torch.triangular_solve(Y,Lambda,upper=False, transpose=False) # TODO handle upper
+            else:
+                Phi = torch.triangular_solve(X,Lambda,upper=False, transpose=False)[0]
+                Lambda_r_MY = torch.triangular_solve(Y.unsqueeze(-1),Lambda,upper=False, transpose=False)[0].squeeze(-1) # TODO handle upper
+            Phit = Phi.transpose(-1,-2)
         else:
             if Lambda_inversed:
-                Psit = Xt.mm(Lambda)
+                Psit = X.transpose(-1,-2).mm(Lambda)
             else: # these case should almost never happen as one usually knows the inverse of the prior covariance of the noise
                 Lambda_r = torch.cholesky(Lambda,upper=False)
                 Psit = (torch.cholesky_solve(X,Lambda_r,upper=False)).transpose(-1,-2)
     if Lambda_rooted:
-        Xt_LambdaM1_X = Phit.mm(Phi)
+        Xt_LambdaM1_X = Phit.mm(Phi) # TODO Phi.PhiT faster with torch fun
         Xt_LambdaM1_Y = Phit.mv(Lambda_r_MY)
     else:
         Xt_LambdaM1_X = Psit.mm(X)
@@ -81,7 +81,7 @@ def regress_linear(X,Y,Lambda=None,Gamma=None,mu=None,Lambda_inversed=False,Gamm
         else:
             GammaM1_mu = GammaM1*mu
         if Gamma.size(-2)==1:
-            GammaM1_mat = GammaM1*torch.eye(p).type(X.type())
+            GammaM1_mat = GammaM1*torch.eye(p,dtype=X.dtype,device=X.device)
         else:
             GammaM1_mat = torch.diag(GammaM1)
     else:
@@ -93,7 +93,7 @@ def regress_linear(X,Y,Lambda=None,Gamma=None,mu=None,Lambda_inversed=False,Gamm
         if mu is None:
             GammaM1_mu = 0
         else:
-            if lemu==1:
+            if mu.size(-1)==1:
                 GammaM1_mu = GammaM1_mat.sum(1)*mu
             else:
                 GammaM1_mu = GammaM1_mat.mv(mu)

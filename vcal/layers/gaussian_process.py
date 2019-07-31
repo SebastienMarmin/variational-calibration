@@ -16,9 +16,10 @@ class GaussianProcess(BaseLayer, metaclass=abc.ABCMeta):
         self._self_means_is_tensor = True
         
         
-        self.pf = log() # univariate transfo for lengthscale (log) use pf.i() for inverse transfo
-        self._lengthscales = nn.Parameter(self.pf(np.sqrt(self.in_features)*.2*torch.ones(in_features)))#nn.Parameter(self.pf(np.sqrt(self.in_features)*.2*torch.ones(in_features)))
-        # can be size 1 or size in_features (or TODO? in_features times out_features)
+        self.pf = log() # univariate transfo for lengthscale (log, or square) use pf.i() for inverse transfo
+        self._lengthscales = nn.Parameter(self.pf(np.sqrt(self.in_features)*.2*torch.ones(in_features)))
+        # can be size [1] or size [in_features] or [in_features,out_features]
+        # (last is for different gp hyperparameters for each output, not implemented for random features)
 
         self._stddevs = nn.Parameter(torch.ones(out_features)) # can be size 1 or size out_features
         self.cov_structure = Matern(self.in_features,smoothness=np.Inf)
@@ -42,8 +43,8 @@ class GaussianProcess(BaseLayer, metaclass=abc.ABCMeta):
     def means(self): # may return a function and not a tensor
         return self._means
     @means.setter
-    def means(self,x):#tensor #  can also be any type of callable returning a tensor, like layer
-        # e.g. learnable function  TOTEST
+    def means(self,x): #tensor #  can also be any type of callable returning a tensor, like layer
+        # e.g. learnable function
         try:
             self._means = x
         except TypeError:

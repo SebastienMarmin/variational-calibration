@@ -11,6 +11,20 @@ class MultiSpaceBatchLoader(object):
 
         self.n_over_m = [n/m for n,m in zip(self.dataset_sizes,self.batch_sizes)]
         self.one_over_n = [1/n for n in self.dataset_sizes]
+        self.nspaces = len(self.loaders)
+
+    # Method out_dims return the number of columns (or size of last dimension) of the last tensor of each "sub" loaders
+    # contained in the MultiSpaceBatchLoader object.
+    # The last tensor is generally the output, thus the name.
+    @property
+    def out_dims(self):
+        res = []
+        for l in self.loaders:
+            try:
+                self.out_dims += [l.dataset.tensors[-1].size(-1)]
+            except AttributeError:
+                self.out_dims += [l.dataset.dataset.tensors[-1].size(-1)] # in case l.dataset is a subset
+        return res
 
     def setup_iterable(self):
         if self.cycle:
