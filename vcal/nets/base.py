@@ -46,7 +46,6 @@ class BaseNet(torch.nn.Module):
     """ 
     def forward(self, input):
         input = input * torch.ones(self.architecture.nmc, *input.size()).to(input.device)  # type: torch.Tensor
-        # TODO: check how to retrieve nmc
         if torch.cuda.is_available() and torch.cuda.device_count() > 1:
             return nn.parallel.data_parallel(self.architecture, inputs=input, dim=1)
         else:
@@ -58,8 +57,7 @@ class BaseNet(torch.nn.Module):
             input_rep = input.expand(torch.Size([self.nmc])+input.size())
         else:
             input_rep = input
-        if torch.cuda.is_available() and torch.cuda.device_count() > 1 and not str(input_rep.device)=="cpu":
-            #TODO check, no str()
+        if torch.cuda.is_available() and torch.cuda.device_count() > 1 and input_rep.is_cuda:
             return torch.nn.parallel.data_parallel(self.layers, inputs=input_rep, dim=1)
         else:
             return self.layers(input_rep)
@@ -84,11 +82,11 @@ class BaseNet(torch.nn.Module):
         self.load_state_dict(torch.load(path, map_location=map_location))
 
     @abc.abstractmethod
-    def compute_error(self, Y_pred, Y_true):
+    def compute_error(self, Y_pred, Y_true, n_over_m):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def compute_nell(self, Y_pred, Y_true, n, m) -> torch.Tensor:
+    def compute_nell(self, Y_pred, Y_true, n_over_m) -> torch.Tensor:
         raise NotImplementedError
 
     def string_parameters_to_optimize(self):

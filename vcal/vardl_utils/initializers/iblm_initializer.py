@@ -54,7 +54,7 @@ class IBLMInitializer(BaseInitializer):
         in_features = layer.in_features
         out_features = layer.out_features
 
-        Y_dim = self.train_dataloader.loaders[-1].dataset.dataset.tensors[-1].size(-1)## TODO user friendly
+        Y_dim = self.train_dataloader.out_dims[-1]
         
         """
         try:
@@ -66,7 +66,7 @@ class IBLMInitializer(BaseInitializer):
 
         for out_index in tqdm(range(out_features)):
 
-            if out_index % Y_dim == 0:# TODO MultiSpace dataloader
+            if out_index % Y_dim == 0:
                 try:
                     X, Y = next(self.train_dataloader_iterator)
                 except StopIteration:

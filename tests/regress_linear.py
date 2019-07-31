@@ -20,7 +20,7 @@ if __name__ == "__main__":
     sigma = np.sqrt(1)                        # écart-type à priori
     NRFs  = 200                               # nombre de features
     theta = 0.05                              # portée radiale
-    tau  = np.sqrt(1/10)                      # écart-type du bruit
+    tau  = np.sqrt(1.0/10.0)                      # écart-type du bruit
 
 
     Omega  = np.sqrt(2)/theta*torch.randn(d,NRFs)
@@ -41,9 +41,9 @@ if __name__ == "__main__":
         elif Lambda_dim == 0:
             Lambda = tau**2*torch.tensor([[1.0]]).type(X.type())
         elif Lambda_dim == 1:
-            Lambda = tau**2*torch.ones(2*NRFs,1).type(X.type())
+            Lambda = tau**2*torch.ones(N,1).type(X.type())
         elif Lambda_dim == 2:
-            Lambda = tau**2*torch.eye(2*NRFs,1).type(X.type())
+            Lambda = tau**2*torch.eye(N).type(X.type())
         for Gamma_dim in Gamma_dim_list:
             if Gamma_dim == -1:
                 Gamma=None
@@ -52,7 +52,7 @@ if __name__ == "__main__":
             elif Gamma_dim == 1:
                 Gamma = torch.ones(2*NRFs,1).type(X.type())
             elif Gamma_dim == 2:
-                Gamma = torch.eye(2*NRFs,1).type(X.type())
+                Gamma = torch.eye(2*NRFs).type(X.type())
             for mu_dim in mu_dim_list:
                 if mu_dim == -1:
                     mu=None
@@ -62,20 +62,28 @@ if __name__ == "__main__":
                     mu = torch.zeros([2*NRFs]).type(X.type())
                 for Lambda_inversed in Lambda_inversed_list:
                     if Lambda_inversed and Lambda is not None:
-                        Lambda = 1/Lambda
+                        Lambda_i = Lambda.inverse() if Lambda_dim == 2 else 1/Lambda
+                    else:
+                        Lambda_i = Lambda
                     for Lambda_rooted in Lambda_rooted_list:
                         if Lambda_rooted and Lambda is not None:
-                            Lambda = Lambda.sqrt()
+                            Lambda_s = Lambda_i.sqrt()
+                        else:
+                            Lambda_s = Lambda_i
                         for Gamma_inversed in Gamma_inversed_list:
                             if Gamma_inversed and Gamma is not None:
-                                Gamma = 1/Gamma
+                                Gamma_i = Gamma.inverse() if Gamma_dim == 2 else 1/Gamma
+                            else:
+                                Gamma_i = Gamma
                             for Gamma_rooted in Gamma_rooted_list:
                                 if Gamma_rooted and Gamma is not None:
-                                    Gamma = Gamma.sqrt()
+                                    Gamma_s = Gamma_i.sqrt()
+                                else:
+                                    Gamma_s = Gamma_i
 
                                 combination = "mu_dim=%d,Lambda_dim=%d,Gamma_dim=%d,Lambda_inversed=%d,Gamma_inversed=%d,Lambda_rooted=%d,Gamma_rooted=%d" % (int(mu_dim),int(Lambda_dim),int(Gamma_dim),int(Lambda_inversed),int(Gamma_inversed),int(Lambda_rooted),int(Gamma_rooted))
                                 print(combination)
-                                meanW,varW,_=regress_linear(Phi,Y,Lambda=None,Gamma=None,mu=mu,Lambda_inversed=Lambda_inversed,Gamma_inversed=Gamma_inversed,Lambda_rooted=Lambda_rooted,Gamma_rooted=Gamma_rooted)
+                                meanW,varW,_=regress_linear(Phi,Y,Lambda=Lambda_s,Gamma=Gamma,mu=mu,Lambda_inversed=Lambda_inversed,Gamma_inversed=Gamma_inversed,Lambda_rooted=Lambda_rooted,Gamma_rooted=Gamma_rooted)
 
                                 axialPre=40
                                 x = torch.linspace(0,1,axialPre).unsqueeze(1)
