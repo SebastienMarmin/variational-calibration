@@ -10,6 +10,9 @@ events.out.tfevents.*
 
 # CSV
 *csv
+!experiments/results/calib_nevada/postMeanLaGP.csv
+!experiments/results/calib_nevada/postMeanTree.csv
+
 
 #Test pdf
 tests/*.pdf
