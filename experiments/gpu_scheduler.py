@@ -81,10 +81,7 @@ def main():
         import warnings
         warnings.warn('User interruption. Cleaning everything..')
 
-    flag_loc = "workspace/flag_new.txt"
-    with open(flag_loc, "w") as f:
-        f.write('1')
-    print("Finished all experiments.")
+
 
 if __name__ == '__main__':
     main()

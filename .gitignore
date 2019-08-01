@@ -17,6 +17,7 @@ events.out.tfevents.*
 #Test pdf
 tests/*.pdf
 experiments/*.pdf
+experiments/figures/*.pdf
 
 
 # Byte-compiled / optimized / DLL files

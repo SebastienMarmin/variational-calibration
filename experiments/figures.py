@@ -135,11 +135,12 @@ while t <tf:
     with open(flag_loc, "r") as f:
         if f.read(1)=="1":
             new=True
+            run_id = f.read()[3:]
         else:
             new=False
     if new:
         make()
-        print(str(t)+": figures done.")
+        print(str(t)+": figures done (run "+run_id+").")
         with open(flag_loc, "w") as f:
             f.write('0')
     t = datetime.now()

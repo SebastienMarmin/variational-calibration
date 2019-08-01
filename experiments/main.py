@@ -434,3 +434,9 @@ if __name__ == '__main__':
         json.dump(results, fp, sort_keys=True, indent=4)
     logger.info("Results saved.")
     logger.info("\n---- RUN ["+outdir+"] FINISHED ----\n\n\n")
+
+    flag_loc = "workspace/flag_new.txt"
+    with open(flag_loc, "w") as f:
+        f.write('1')
+        f.write('\n'+outdir)
+    print("Finished all experiments.")
