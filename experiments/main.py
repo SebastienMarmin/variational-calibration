@@ -355,23 +355,22 @@ if __name__ == '__main__':
         scale_delta = output_std_obs
         mean_delta = output_mean_obs
     logger.info("Discrepancy input dimension: {:3d}".format(dim_delta))
-    delta = DGP(dim_delta, output_dim,args.full_cov_W,args.nlayers_obs,args.nfeatures_obs,args.nmc_train,args.nmc_test,mean_delta,output_std_obs)
+    delta = DGP(dim_delta, output_dim,args.full_cov_W,args.nlayers_obs,args.nfeatures_obs,args.nmc_train,args.nmc_test,mean_delta,scale_delta)
     for gp in list(delta):
         gp.optimize_fourier_features(args.rff_optim_obs==1)
 
     computer_model = RegressionNet(eta)
     discrepancy   = RegressionNet(delta)
 
-    computer_model.likelihood.stddevs = args.noise_std_run
-    discrepancy.likelihood.stddevs    = args.noise_std_obs
+    computer_model.likelihood.stddevs = args.noise_std_run*output_std_run
+    discrepancy.likelihood.stddevs    = args.noise_std_obs*output_std_obs
 
 
     calib_prior = GaussianVector(calib_dim,constant_mean=.5,parameter=False)
-    calib_prior.stddevs=50
+    calib_prior.stddevs=np.sqrt(calib_dim) # proportional with the length of the hypercube diagonal
     calib_posterior = GaussianVector(calib_dim)
-    calib_posterior.set_covariance(calib_prior)
-    calib_posterior.loc.data = torch.ones(1,1)*torch.randn(1).item()*.5+.5
-    calib_posterior.stddevs = .05
+    calib_posterior.loc.data = torch.ones_like(calib_posterior.loc)*.5
+    calib_posterior.stddevs = np.sqrt(calib_dim)
     if args.additive == 1:
         model = AdditiveDiscrepancy(computer_model,discrepancy,calib_prior,calib_posterior,true_calib=true_calib)
     else:
@@ -391,10 +390,12 @@ if __name__ == '__main__':
     tb_logger = vcal.vardl_utils.logger.TensorboardLogger(path=outdir, model=model, directory=None)
     trainer = vcal.learning.Trainer(model, 'Adam', {'lr': args.lr}, train_data_loader,test_data_loader,args.device, args.seed, tb_logger, debug=args.verbose,lr_calib=args.lr_calib)
 
-    if not args.verbose: # already displayed by the creator of trainer with verbose
-        logger.info(model.string_parameters_to_optimize())
-
+    
     trainer.fit(args.iterations_fixed_noise, args.test_interval, 1, time_budget=args.time_budget//2)
+    model.computer_model.likelihood.scale.requires_grad=True
+    model.discrepancy.likelihood.scale.requires_grad=True
+    calib_posterior.stddevs = 0.05*np.sqrt(calib_dim) # for improvig the search of calib_parameter
+    trainer.fit(args.iterations_free_noise, args.test_interval, 1, time_budget=args.time_budget//2)
     logger.info("Training finished.")
 
     logger.info("Start testing.")

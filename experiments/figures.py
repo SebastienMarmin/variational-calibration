@@ -121,15 +121,16 @@ def make():
     print("Excecute :"+" ".join(command))
     subprocess.run(command)
 
-make()
-"""
+#make()
+
 import time
 from datetime import datetime, timedelta
 t0 = datetime.now()
 t = datetime.now()
 tf = t0 + timedelta(days=7)
-period = timedelta(seconds=5)
+period = timedelta(seconds=30)
 flag_loc = "workspace/flag_new.txt"
+print("Start watching out for new runs.")
 while t <tf:
     with open(flag_loc, "r") as f:
         if f.read(1)=="1":
@@ -138,9 +139,9 @@ while t <tf:
             new=False
     if new:
         make()
-        print("Figures_done")
+        print(str(t)+": figures done.")
         with open(flag_loc, "w") as f:
             f.write('0')
+    t = datetime.now()
     time.sleep(period.seconds)
     
-"""

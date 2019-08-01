@@ -43,8 +43,8 @@ class IBLMInitializer(BaseInitializer):
         self.device = device
         self.train_dataloader = train_dataloader
         self.train_dataloader_iterator = self.train_dataloader.iterable(cycle=True,out_device=device)
-        self.noise_var = noise_var * torch.ones(1, device=self.device)
-
+        self.noise_cov = noise_var * torch.ones(1,1, device=self.device)
+        
         logger.info('Initialization with I-BLM')
 
     def _initialize_layer(self, layer, layer_index=None):
@@ -82,6 +82,6 @@ class IBLMInitializer(BaseInitializer):
                 # Run a forward pass (the hook will save the input to the layer)
                 self.model(X)
                 new_in_data = layer.input_to_layer.mean(0)
-            layer.set_to_posterior(new_in_data,Y[...,index_Y],self.noise_var,output_index=out_index)
+            layer.set_to_posterior(new_in_data,Y[...,index_Y],self.noise_cov,output_index=out_index)
         hook_hadler.remove()
 

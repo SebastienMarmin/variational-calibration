@@ -21,9 +21,9 @@ class MultiSpaceBatchLoader(object):
         res = []
         for l in self.loaders:
             try:
-                self.out_dims += [l.dataset.tensors[-1].size(-1)]
+                res += [l.dataset.tensors[-1].size(-1)]
             except AttributeError:
-                self.out_dims += [l.dataset.dataset.tensors[-1].size(-1)] # in case l.dataset is a subset
+                res += [l.dataset.dataset.tensors[-1].size(-1)] # in case l.dataset is a subset
         return res
 
     def setup_iterable(self):

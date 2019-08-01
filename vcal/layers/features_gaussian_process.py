@@ -39,13 +39,12 @@ class FeaturesGaussianProcess(GaussianProcess):
         M = self.mean_function(X)
         Yc = Y - M[...,i]
         Phi = self.activation(X)
-        prior_std = self.stddevs
+        prior_std = self.stddevs[...,i]
         Lambda = noise_covariance
 
         mu = self.W_prior.mean[:,i]
 
         Gamma = self.W_prior.get_column_covariances(i,root=False)
-
         meanBeta, covBeta, _ = regress(prior_std*Phi,Yc,Lambda,Gamma,mu)
         # infere beta : Yc = Phi beta + eps
         # Lambda: prior in eps; mu and Gamma: prior on beta
