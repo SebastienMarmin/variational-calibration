@@ -32,6 +32,8 @@ class FeaturesGaussianProcess(GaussianProcess):
          # except it keep and handle consistantly all the flag of self.W (all_independent, only_row_dep, etc)
          # and do proper expand if the bach_size are different.
 
+    def optimize_weights(self,b=True):
+        self.W.optimize(b)
 
 
     def set_to_posterior(self,X,Y,noise_covariance,output_index=0):
@@ -117,9 +119,9 @@ class FourierFeaturesGaussianProcess(FeaturesGaussianProcess):
         #return self.Phi_fun(SP)/self.sqrt_nfeatures
         return Phi_fun/self.sqrt_nfeatures
     
-    def fix_hyperparameters(self):
-        super(FourierFeaturesGaussianProcess, self).fix_hyperparameters()
-        self.Omega.requires_grad = False
+    def fix_hyperparameters(self,b):
+        super(FourierFeaturesGaussianProcess, self).fix_hyperparameters(b)
+        self.Omega.requires_grad = b
 
     def optimize_fourier_features(self,optim=True):
         self.Omega.requires_grad = optim

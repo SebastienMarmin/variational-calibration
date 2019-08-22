@@ -27,10 +27,10 @@ import matplotlib
 from matplotlib import pyplot as plt
 import timeit
 
-models = {"additive":AdditiveDiscrepancy}
+#models = {"additive":AdditiveDiscrepancy}
 
 def parse_args():
-    available_models = models.keys()
+    #available_models = models.keys()
     available_datasets = ["calib_borehole","calib_currin","calib_case1","calib_case2","calib_nevada","calib_test_full"]
 
     parser = argparse.ArgumentParser()
@@ -66,7 +66,7 @@ def parse_args():
                         help='Learning rate for training', )
     parser.add_argument('--lr_calib', type=float, default=1e-1,
                         help='Learning rate for training of the variational calibration', )
-    parser.add_argument('--model', choices=available_models, type=str,
+    parser.add_argument('--model', type=str,
                         help='Type of Bayesian model')
     parser.add_argument('--outdir', type=str,
                         default='workspace/',
@@ -290,6 +290,33 @@ def plotCalibDomain(X, XStar, T, Y, Z, model,lower2,upper2,priorMean,priorCovRoo
     
     return tGrid, qThetaExact
 
+class DGP(torch.nn.Sequential):
+    def __init__(self, input_dim,output_dim,full_cov_W,nlayers,nfeatures,nmc_train,nmc_test,mean,scale,**kwargs):
+        gp_list = list() # type: List(torch.nn.Module)
+        nl = nlayers
+        for i in range(nlayers):
+            # Layer widths given by trapezoidal interpolation
+            d_in = int((1-i/nl)*input_dim + i/nl*output_dim)
+            d_out = int((1-(i+1)/nl)*input_dim + (i+1)/nl*output_dim)
+            gp   = GP(d_in,d_out,nfeatures=nfeatures, nmc_train=nmc_train, nmc_test=nmc_test,full_cov_W=full_cov_W)
+            if i<nlayers-1:
+                gp._stddevs.requires_grad = False
+                # Scale factor useful only for the last layer 
+                # (because else it is equivalent to the lengthscale of the next GP)
+            gp_list += [gp]
+        gp_list[-1].mean = mean # last GP fit the data output mean and variance (equivalent to standardize the data)
+        gp_list[-1].stddevs = scale
+        super(DGP, self).__init__(*gp_list, **kwargs)
+        
+    def optimize_weights(self,b=True):
+        for gp in self:
+            gp.optimize_weights(b)
+    def fix_hyperparameters(self,b=True):
+        for gp in self:
+            print(gp)
+            gp.fix_hyperparameters(b)
+        
+"""
 def DGP(input_dim,output_dim,full_cov_W,nlayers,nfeatures,nmc_train,nmc_test,mean,scale):
     gp_list = list() # type: List(torch.nn.Module)
     nl = nlayers
@@ -306,137 +333,170 @@ def DGP(input_dim,output_dim,full_cov_W,nlayers,nfeatures,nmc_train,nmc_test,mea
     gp_list[-1].mean = mean # last GP fit the data output mean and variance (equivalent to standardize the data)
     gp_list[-1].stddevs = scale
     return torch.nn.Sequential(*gp_list)
+"""
 
 if __name__ == '__main__':
+    
     args = parse_args()
-    outdir = vcal.vardl_utils.next_path('%s/%s/%s/' % (args.outdir, args.dataset, "additive_"+str(args.additive)) + 'run-%04d/')
-    try:
-        os.makedirs(outdir)
-    except OSError:  
-        print ("Creation of the directory %s failed" % outdir)
+    proce = True
+    if (args.dataset == "calib_nevada" or args.dataset == "calib_borehole") and args.additive==0:
+        proce = False
+    if (args.dataset == "calib_case2" or args.dataset == "calib_borehole") and args.nlayers_run==2:
+        proce = False
+    if proce:
+        outdir = vcal.vardl_utils.next_path('%s/%s/%s/' % (args.outdir, args.dataset, "additive_"+str(args.additive)) + 'run-%04d/')
+        try:
+            os.makedirs(outdir)
+        except OSError:  
+            print ("Creation of the directory %s failed" % outdir)
 
-    if args.verbose:
-            logger = vcal.vardl_utils.setup_logger('vcal', outdir, 'DEBUG')
-    else:
-            logger = vcal.vardl_utils.setup_logger('vcal#', outdir)
-    logger.info('Configuration:')
-    for key, value in vars(args).items():
-            logger.info('  %s = %s' % (key, value))
+        if args.verbose:
+                logger = vcal.vardl_utils.setup_logger('vcal', outdir, 'DEBUG')
+        else:
+                logger = vcal.vardl_utils.setup_logger('vcal#', outdir)
+        logger.info('Configuration:')
+        for key, value in vars(args).items():
+                logger.info('  %s = %s' % (key, value))
 
-    # Save experiment configuration as yaml file in logdir
-    with open(outdir + 'experiment_config.json', 'w') as fp:
-            json.dump(vars(args), fp, sort_keys=True, indent=4)
-    vcal.utilities.set_seed(args.seed)
-    train_obs_loader,train_run_loader,test_obs_loader,test_run_loader, input_dim, calib_dim,output_dim,true_calib = setup_dataset()
-    train_data_loader = MultiSpaceBatchLoader(train_obs_loader,train_run_loader)
-    test_data_loader  = MultiSpaceBatchLoader(test_obs_loader,  test_run_loader)
+        # Save experiment configuration as yaml file in logdir
+        with open(outdir + 'experiment_config.json', 'w') as fp:
+                json.dump(vars(args), fp, sort_keys=True, indent=4)
+        vcal.utilities.set_seed(args.seed)
+        train_obs_loader,train_run_loader,test_obs_loader,test_run_loader, input_dim, calib_dim,output_dim,true_calib = setup_dataset()
+        train_data_loader = MultiSpaceBatchLoader(train_obs_loader,train_run_loader)
+        test_data_loader  = MultiSpaceBatchLoader(test_obs_loader,  test_run_loader)
 
-    output_mean_run = train_run_loader.dataset.tensors[-1].mean(-2)
-    output_std_run  = train_run_loader.dataset.tensors[-1].mean(-2)
-    output_mean_obs = train_obs_loader.dataset.tensors[-1].var(-2).sqrt()
-    output_std_obs  = train_obs_loader.dataset.tensors[-1].var(-2).sqrt()
+        output_mean_run = train_run_loader.dataset.tensors[-1].mean(-2)
+        output_std_run  = train_run_loader.dataset.tensors[-1].mean(-2)
+        scale_factor_run = (output_std_run**2).mean().sqrt().item()
+        output_mean_obs = train_obs_loader.dataset.tensors[-1].var(-2).sqrt()
+        output_std_obs  = train_obs_loader.dataset.tensors[-1].var(-2).sqrt()
+        scale_factor_obs = (output_std_run**2).mean().sqrt().item()
 
-    dobs = train_data_loader.loaders[0].dataset
-    drun = train_data_loader.loaders[1].dataset
-    logger.info("Training observation points: {:4d}, in dimension {:3d}.".format(len(dobs),dobs.tensors[0].size(-1)))
-    logger.info("Training computer runs:      {:4d}, in dimension {:3d}.".format(len(drun),drun.tensors[0].size(-1)+drun.tensors[1].size(-1)))
-    logger.info("Calibration dimension: {:3d}".format(drun.tensors[1].size(-1)))
-
-
-    eta = DGP(input_dim,output_dim,args.full_cov_W,args.nlayers_run,args.nfeatures_run,args.nmc_train,args.nmc_test,output_mean_run,output_std_run)
-    for gp in list(eta):
-        gp.optimize_fourier_features(args.rff_optim_run==1)
-    if args.additive == 1:
-        dim_delta = input_dim-calib_dim
-        scale_delta = args.discrepancy_level * output_std_obs
-        mean_delta = torch.zeros(output_dim)
-    else:
-        dim_delta = 1+ input_dim-calib_dim
-        scale_delta = output_std_obs
-        mean_delta = output_mean_obs
-    logger.info("Discrepancy input dimension: {:3d}".format(dim_delta))
-    delta = DGP(dim_delta, output_dim,args.full_cov_W,args.nlayers_obs,args.nfeatures_obs,args.nmc_train,args.nmc_test,mean_delta,scale_delta)
-    for gp in list(delta):
-        gp.optimize_fourier_features(args.rff_optim_obs==1)
-
-    computer_model = RegressionNet(eta)
-    discrepancy   = RegressionNet(delta)
-
-    computer_model.likelihood.stddevs = args.noise_std_run*output_std_run
-    discrepancy.likelihood.stddevs    = args.noise_std_obs*output_std_obs
+        dobs = train_data_loader.loaders[0].dataset
+        drun = train_data_loader.loaders[1].dataset
+        logger.info("Training observation points: {:4d}, in dimension {:3d}.".format(len(dobs),dobs.tensors[0].size(-1)))
+        logger.info("Training computer runs:      {:4d}, in dimension {:3d}.".format(len(drun),drun.tensors[0].size(-1)+drun.tensors[1].size(-1)))
+        logger.info("Calibration dimension: {:3d}".format(drun.tensors[1].size(-1)))
 
 
-    calib_prior = GaussianVector(calib_dim,constant_mean=.5,parameter=False)
-    calib_prior.stddevs=np.sqrt(calib_dim) # proportional with the length of the hypercube diagonal
-    calib_posterior = GaussianVector(calib_dim)
-    calib_posterior.loc.data = torch.ones_like(calib_posterior.loc)*.5
-    calib_posterior.stddevs = np.sqrt(calib_dim)
-    if args.additive == 1:
-        model = AdditiveDiscrepancy(computer_model,discrepancy,calib_prior,calib_posterior,true_calib=true_calib)
-    else:
-        model = GeneralDiscrepancy(computer_model,discrepancy,calib_prior,calib_posterior,true_calib=true_calib)
-    
+        eta = DGP(input_dim,output_dim,args.full_cov_W,args.nlayers_run,args.nfeatures_run,args.nmc_train,args.nmc_test,output_mean_run,output_std_run)
+        for gp in list(eta):
+            gp.optimize_fourier_features(args.rff_optim_run==1)
+        if args.additive == 1:
+            dim_delta = input_dim-calib_dim
+            scale_delta = args.discrepancy_level * output_std_obs
+            mean_delta = torch.zeros(output_dim)
+        else:
+            dim_delta = 1+ input_dim-calib_dim
+            scale_delta = output_std_obs
+            mean_delta = output_mean_obs
+        logger.info("Discrepancy input dimension: {:3d}".format(dim_delta))
+        delta = DGP(dim_delta, output_dim,args.full_cov_W,args.nlayers_obs,args.nfeatures_obs,args.nmc_train,args.nmc_test,mean_delta,scale_delta)
+        for gp in list(delta):
+            gp.optimize_fourier_features(args.rff_optim_obs==1)
 
-    ### Initialization of the computer model
-    # Compute how big can be the batch size
-    npts_run = len(train_data_loader.loaders[1].dataset)
-    init_batchsize_run = min(args.init_batchsize,npts_run)
-    init_data_run,_=random_split(train_data_loader.loaders[1].dataset,[init_batchsize_run,npts_run-init_batchsize_run])
-    dataloader_run_for_init=SingleSpaceBatchLoader(DataLoader(init_data_run,batch_size=init_batchsize_run),cat_inputs=True)
-    scale_factor = (output_std_run**2).mean().sqrt().item()
-    computer_model_initializer=IBLMInitializer(computer_model,dataloader_run_for_init,noise_var =0.01*scale_factor)
-    computer_model_initializer.initialize()
-    
-    tb_logger = vcal.vardl_utils.logger.TensorboardLogger(path=outdir, model=model, directory=None)
-    trainer = vcal.learning.Trainer(model, 'Adam', {'lr': args.lr}, train_data_loader,test_data_loader,args.device, args.seed, tb_logger, debug=args.verbose,lr_calib=args.lr_calib)
+        computer_model = RegressionNet(eta)
+        discrepancy   = RegressionNet(delta)
 
-    
-    trainer.fit(args.iterations_fixed_noise, args.test_interval, 1, time_budget=args.time_budget//2)
-    model.computer_model.likelihood.scale.requires_grad=True
-    model.discrepancy.likelihood.scale.requires_grad=True
-    calib_posterior.stddevs = 0.05*np.sqrt(calib_dim) # for improvig the search of calib_parameter
-    trainer.fit(args.iterations_free_noise, args.test_interval, 1, time_budget=args.time_budget//2)
-    logger.info("Training finished.")
-
-    logger.info("Start testing.")
-    test_mnll, test_error = trainer.test()
-    logger.info("Testing finished.")
-    
-
-    
-    results = {}
-    for key, value in vars(args).items():
-        results[key] = value
-    results['outdir'] = outdir
-    results['trainable_parameters'] = model.trainable_parameters
-    results['test_mnll'] = float(test_mnll.item())
-    results.update(test_error)
-    results['total_iters'] = trainer.current_iteration
-
-    results["calib_mean"] = tuple((t.item() for t in calib_posterior.mean))
-    results["calib_stddev"] =  tuple((t.item() for t in calib_posterior.stddevs))
-
-    
+        computer_model.likelihood.stddevs = args.noise_std_run*scale_factor_run
+        discrepancy.likelihood.stddevs    = args.noise_std_obs*scale_factor_obs
 
 
-    if args.dataset == "calib_nevada":        
-        pre = 80
-        xx = torch.cat((torch.linspace(0,1,pre).unsqueeze(-1),torch.zeros(pre,1)),-1)
+        calib_prior = GaussianVector(calib_dim,constant_mean=.5,parameter=False)
+        calib_prior.stddevs=np.sqrt(calib_dim) # proportional with the length of the hypercube diagonal
+        calib_posterior = GaussianVector(calib_dim)
+        calib_posterior.loc.data = torch.ones_like(calib_posterior.loc)*.5
+        calib_posterior.stddevs = np.sqrt(calib_dim)
+        if args.additive == 1:
+            model = AdditiveDiscrepancy(computer_model,discrepancy,calib_prior,calib_posterior,true_calib=true_calib)
+        else:
+            model = GeneralDiscrepancy(computer_model,discrepancy,calib_prior,calib_posterior,true_calib=true_calib)
 
-        theta_hat = calib_posterior.mean.unsqueeze(-2).expand(xx.size(-2),-1)
-        model.eval()
-        Y_mean = model.phenomenon(xx.to(theta_hat.device),theta_hat)
-        results["y_mean"] =  tuple((y.item() for y in Y_mean))
+
+        ### Initialization of the computer model
+        # Compute how big can be the batch size
+        npts_run = len(train_data_loader.loaders[1].dataset)
+        init_batchsize_run = min(args.init_batchsize,npts_run)
+        init_data_run,_=random_split(train_data_loader.loaders[1].dataset,[init_batchsize_run,npts_run-init_batchsize_run])
+        dataloader_run_for_init=SingleSpaceBatchLoader(DataLoader(init_data_run,batch_size=init_batchsize_run),cat_inputs=True)
+        computer_model_initializer=IBLMInitializer(computer_model,dataloader_run_for_init,noise_var =0.01*scale_factor_run)
+        computer_model_initializer.initialize()
+
+        tb_logger = vcal.vardl_utils.logger.TensorboardLogger(path=outdir, model=model, directory=None)
+
+
+        ###################
+        # STAGE 1
+        ### Mute discrepancy and calibration
+        discrepancy.likelihood.stddevs = 2*scale_factor_obs
+        delta.optimize_weights(False)
+        delta.fix_hyperparameters(True)
+        calib_posterior.optimize(False)
+        ### Start
+        trainer = vcal.learning.Trainer(model, 'Adam', {'lr': args.lr}, train_data_loader,test_data_loader,args.device, args.seed, tb_logger, debug=args.verbose,lr_calib=args.lr_calib)
+        trainer.fit(args.iterations_fixed_noise, args.test_interval, 1, time_budget=args.time_budget//2)
+
+        ###################
+        # STAGE 2
+        ### Desactivate computer_model learning
+        eta.fix_hyperparameters(True)
+        eta.optimize_weights(False)
+        ### Reactivate discrepancy and calibration
+        discrepancy.likelihood.stddevs = args.noise_std_obs*scale_factor_obs
+        delta.optimize_weights(True)
+        calib_posterior.optimize(True)
+        ### Activate observation noise optim
+        model.discrepancy.likelihood.optimize(True)
+        ### Low initial variational posterior variance for improvig the search of calib parameter mean
+        calib_posterior.stddevs = 0.05*np.sqrt(calib_dim)
+        ### Start
+        logger.info("Stage 1 finished. Stage 2:")
+        logger.info(model.string_parameters_to_optimize())
+        trainer.fit(args.iterations_free_noise, args.test_interval, 1, time_budget=args.time_budget//2)
+
+        ###################
+        logger.info("Training finished.")
+
+        logger.info("Start testing.")
+        test_mnll, test_error = trainer.test()
+        logger.info("Testing finished.")
 
 
 
-    with open(outdir + 'results.json', 'w') as fp:
-        json.dump(results, fp, sort_keys=True, indent=4)
-    logger.info("Results saved.")
-    logger.info("\n---- RUN ["+outdir+"] FINISHED ----\n\n\n")
+        results = {}
+        for key, value in vars(args).items():
+            results[key] = value
+        results['outdir'] = outdir
+        results['trainable_parameters'] = model.trainable_parameters
+        results['test_mnll'] = float(test_mnll.item())
+        results.update(test_error)
+        results['total_iters'] = trainer.current_iteration
 
-    flag_loc = "workspace/flag_new.txt"
-    with open(flag_loc, "w") as f:
-        f.write('1')
-        f.write('\n'+outdir)
-    print("Finished all experiments.")
+        results["calib_mean"] = tuple((t.item() for t in calib_posterior.mean))
+        results["calib_stddev"] =  tuple((t.item() for t in calib_posterior.stddevs))
+
+
+
+
+        if args.dataset == "calib_nevada":        
+            pre = 80
+            xx = torch.cat((torch.linspace(0,1,pre).unsqueeze(-1),torch.zeros(pre,1)),-1)
+
+            theta_hat = calib_posterior.mean.unsqueeze(-2).expand(xx.size(-2),-1)
+            model.eval()
+            Y_mean = model.phenomenon(xx.to(theta_hat.device),theta_hat)
+            results["y_mean"] =  tuple((y.item() for y in Y_mean))
+
+
+
+        with open(outdir + 'results.json', 'w') as fp:
+            json.dump(results, fp, sort_keys=True, indent=4)
+        logger.info("Results saved.")
+        logger.info("\n---- RUN ["+outdir+"] FINISHED ----\n\n\n")
+
+        flag_loc = "workspace/flag_new.txt"
+        with open(flag_loc, "w") as f:
+            f.write('1')
+            f.write('\n'+outdir)
+        print("Finished all experiments.")

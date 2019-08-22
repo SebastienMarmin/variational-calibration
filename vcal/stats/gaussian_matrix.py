@@ -622,7 +622,7 @@ class GaussianMatrix(torch.nn.Module):
             self.scale = scale.detach()
         except TypeError:
             self.scale = torch.nn.Parameter(scale,requires_grad=self.scale.requires_grad)
-
+        # TODO unify self.scale setting in one method with device handling
 
 
     @property
@@ -842,9 +842,9 @@ class GaussianVector(GaussianMatrix):
     @stddevs.setter
     def stddevs(self,X):# float or vector (with size [...,self.d])
         try:
-            self.set_stddevs(X.unsqueeze(-1))
+            super().set_stddevs(X.unsqueeze(-1))
         except AttributeError:
-            self.set_stddevs(X)
+            super().set_stddevs(X)
 
     @property
     def mean(self):
