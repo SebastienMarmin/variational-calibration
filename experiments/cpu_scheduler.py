@@ -24,23 +24,20 @@ import yaml
 from sklearn.model_selection import ParameterGrid
 from joblib import Parallel, delayed
 import json
+import psutil
 
-def setup_queue(q: queue.Queue, n_gpus: int, jobs_per_gpus: int):
-    for _ in range(jobs_per_gpus):
-        for i in range(n_gpus):
-            q.put(i)
+def setup_queue(q: queue.Queue, parallel_jobs: int):
+    for i in range(parallel_jobs):
+        q.put(i)
 
 
 def worker(q: queue.Queue, command, **kwargs):
-    gpu = q.get()
-    gpu += 1
-    command = 'CUDA_VISIBLE_DEVICES=%d ' % gpu + command
+    cpu = q.get()
     for key, value in kwargs.items():
         command += ' --%s %s ' % (key, value)
-    command += '--cuda'
     print(command)
     os.system(command)
-    q.put(gpu-1)
+    q.put(cpu)
 
 
 def main():
@@ -53,7 +50,7 @@ def main():
     with open(args.config) as data_file:
         config = json.load(data_file)
 
-    parallel_jobs = config['n_gpus'] * config['jobs_per_gpu']
+    parallel_jobs = max(psutil.cpu_count()-1,1)
 
     #if parallel_jobs > psutil.cpu_count():
     #    print('WARNING - More jobs than CPU thread. Might impact on time performances')
@@ -61,8 +58,7 @@ def main():
     gpu_queue = queue.Queue(maxsize=parallel_jobs)
 
     setup_queue(gpu_queue,
-                n_gpus=config['n_gpus'],
-                jobs_per_gpus=config['jobs_per_gpu'])
+                parallel_jobs)
 
     base_command = config['bin'] + ' ' + config['executable']
 

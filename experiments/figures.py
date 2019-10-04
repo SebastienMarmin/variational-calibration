@@ -7,11 +7,9 @@ import json
 import torch
 
 
-kw = "additive" # additive/
+kw = "" # additive/
 
-m_nevada = True
-m_borehole = True
-m_case2 = True
+external_link =  "/run/user/1000/gvfs/sftp:host=ssh.zoe.eurecom.fr,user=marmin/mnt/cephfs/zoe-workspaces/prod/marmin/"
 
     # Fetch data
 def build_frame(glob_folder, only_most_recent=False):
@@ -19,7 +17,6 @@ def build_frame(glob_folder, only_most_recent=False):
     os.chdir(glob_folder)
     json_files = glob.glob('**/results.json', recursive=True)
     print("nb_files:"+str(len(json_files)))
-    print(json_files)
     if only_most_recent:
         json_files = (max(json_files, key=os.path.getctime),)
 
@@ -27,9 +24,13 @@ def build_frame(glob_folder, only_most_recent=False):
     for file in json_files:
         try:
             run_time =  os.stat(os.path.dirname(file)).st_mtime 
-            newpd = pd.DataFrame(pd.read_json(file, typ='series')).T
-            newpd['birth_time']=int(run_time)
-            dfs.append(newpd)
+            print(file)
+            try:
+                newpd = pd.DataFrame(pd.read_json(file, typ='series')).T
+                newpd['birth_time']=int(run_time)
+                dfs.append(newpd)
+            except ValueError:
+                print("Error reading it.")
         except json.JSONDecodeError:
             print("Error reading "+file+". Skipping.")
         
@@ -40,14 +41,14 @@ def build_frame(glob_folder, only_most_recent=False):
     os.chdir(bckup_wd)
     if not kw == "":
         df = df[df["model"]==kw]
-    return df, os.path.dirname(max(json_files, key=os.path.getctime))
+    return df
 
-def make():
+def make(run_id):
     scriptpath = os.path.dirname(os.path.realpath(__file__))+"/"
     input_folder = scriptpath+"workspace/"
     results_folder = scriptpath+"results/"
     gen_fig_folder = scriptpath+"figures/gen_fig/"
-    output_folder = scriptpath+"figures/"+kw+"/"
+    output_folder = run_id#scriptpath+"figures/"+kw+"/"
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
     data_set_folder = "~/Datasets/"
@@ -57,9 +58,9 @@ def make():
         dataset_name = "calib_nevada"
         gen_fig_path = gen_fig_folder+dataset_name+".R"
         dataset_path = data_set_folder+dataset_name+"/"
-        #results_path = results_folder+dataset_name+"/"
-        df,results_path = build_frame(input_folder+dataset_name+"/",only_most_recent=False)
-
+        results_path = results_folder+dataset_name+"/"
+        df = build_frame(input_folder+dataset_name+"/",only_most_recent=False)
+        
 
         df_shallow =  df[df["nlayers_run"]==1]
         df_deep    =  df[df["nlayers_run"]>1]
@@ -91,8 +92,8 @@ def make():
         dataset_name = "calib_borehole"
         gen_fig_path = gen_fig_folder+dataset_name+".R"
         dataset_path = data_set_folder+dataset_name+"/"
-        #results_path = results_folder+dataset_name+"/"
-        df,results_path = build_frame(input_folder+dataset_name+"/",only_most_recent=True)
+        results_path = results_folder+dataset_name+"/"
+        df = build_frame(input_folder+dataset_name+"/",only_most_recent=True)
         folder=df["outdir"]
 
         # build graph
@@ -107,8 +108,8 @@ def make():
         dataset_name = "calib_case2"
         gen_fig_path = gen_fig_folder+dataset_name+".R"
         dataset_path = data_set_folder+dataset_name+"/"
-        #results_path = results_folder+dataset_name+"/"
-        df ,results_path = build_frame(input_folder+dataset_name+"/",only_most_recent=False)
+        results_path = results_folder+dataset_name+"/"
+        df = build_frame(input_folder+dataset_name+"/",only_most_recent=False)
 
 
         df_additive =  df[df["additive"]==1]
@@ -133,27 +134,47 @@ def make():
         subprocess.run(command)
 
 #make()
-
+m_case2 = m_borehole = m_nevada = False
 import time
 from datetime import datetime, timedelta
 t0 = datetime.now()
 t = datetime.now()
 tf = t0 + timedelta(days=7)
-period = timedelta(seconds=30)
+period = timedelta(seconds=2)
 flag_loc = "workspace/flag_new.txt"
 print("Start watching out for new runs.")
 while t <tf:
-    with open(flag_loc, "r") as f:
-        if f.read(1)=="1":
+    with open(flag_loc) as f:
+        run_id = f.readline()
+        if run_id!="":
+            if external_link != "":
+                run_id = run_id[15:]
+                run_id = external_link+run_id
             new=True
-            run_id = f.read()[3:]
+            print("Start analysing "+str(run_id))
         else:
             new=False
     if new:
-        make()
-        print(str(t)+": figures done (run "+run_id+").")
-        with open(flag_loc, "w") as f:
-            f.write('0')
+        print("rid")
+        print(run_id)
+        if "calib_nevada" in run_id:
+            m_nevada = True
+            make(run_id)
+        elif "calib_borehole" in run_id:
+            m_borehole = True
+            make(run_id)
+        elif "calib_case2" in run_id:
+            m_case2 = True
+            make(run_id)
+        else:
+            print("dataset not recognised")
+        
+        print(str(t)+": figures done (run "+run_id+").\n\n")
+        with open(flag_loc, 'r') as fin:
+            data = fin.read().splitlines(True)
+        with open(flag_loc, 'w') as fout:
+            fout.writelines(data[1:])
+        
     t = datetime.now()
     time.sleep(period.seconds)
     

@@ -13,7 +13,7 @@ from torch.utils.data.dataset import random_split
 #from collections import OrderedDict
 
 import timeit
-#import intertools
+import time
 import vcal
 from vcal.nets import AdditiveDiscrepancy, RegressionNet, GeneralDiscrepancy
 from vcal.layers import FourierFeaturesGaussianProcess as GP
@@ -313,7 +313,6 @@ class DGP(torch.nn.Sequential):
             gp.optimize_weights(b)
     def fix_hyperparameters(self,b=True):
         for gp in self:
-            print(gp)
             gp.fix_hyperparameters(b)
         
 """
@@ -343,10 +342,20 @@ if __name__ == '__main__':
         proce = False
     if (args.dataset == "calib_case2" or args.dataset == "calib_borehole") and args.nlayers_run==2:
         proce = False
+    if not proce:
+        print("SKIPPING")
     if proce:
-        outdir = vcal.vardl_utils.next_path('%s/%s/%s/' % (args.outdir, args.dataset, "additive_"+str(args.additive)) + 'run-%04d/')
+        
         try:
-            os.makedirs(outdir)
+            for i in range(400):
+                if i>398:
+                    print("Problems making the folder "+outdir)
+                try:
+                    outdir = vcal.vardl_utils.next_path('%s/%s/%s/' % (args.outdir, args.dataset, "additive_"+str(args.additive)) + 'run-%04d/')
+                    os.makedirs(outdir)
+                    break
+                except FileExistsError:
+                    time.sleep(.2)        
         except OSError:  
             print ("Creation of the directory %s failed" % outdir)
 
@@ -420,7 +429,7 @@ if __name__ == '__main__':
         init_batchsize_run = min(args.init_batchsize,npts_run)
         init_data_run,_=random_split(train_data_loader.loaders[1].dataset,[init_batchsize_run,npts_run-init_batchsize_run])
         dataloader_run_for_init=SingleSpaceBatchLoader(DataLoader(init_data_run,batch_size=init_batchsize_run),cat_inputs=True)
-        computer_model_initializer=IBLMInitializer(computer_model,dataloader_run_for_init,noise_var =0.01*scale_factor_run)
+        computer_model_initializer=IBLMInitializer(computer_model,dataloader_run_for_init,noise_var =0.1*scale_factor_run)
         computer_model_initializer.initialize()
 
         tb_logger = vcal.vardl_utils.logger.TensorboardLogger(path=outdir, model=model, directory=None)
@@ -449,7 +458,7 @@ if __name__ == '__main__':
         ### Activate observation noise optim
         model.discrepancy.likelihood.optimize(True)
         ### Low initial variational posterior variance for improvig the search of calib parameter mean
-        calib_posterior.stddevs = 0.05*np.sqrt(calib_dim)
+        calib_posterior.stddevs = 0.02*np.sqrt(calib_dim)
         ### Start
         logger.info("Stage 1 finished. Stage 2:")
         logger.info(model.string_parameters_to_optimize())
@@ -496,7 +505,6 @@ if __name__ == '__main__':
         logger.info("\n---- RUN ["+outdir+"] FINISHED ----\n\n\n")
 
         flag_loc = "workspace/flag_new.txt"
-        with open(flag_loc, "w") as f:
-            f.write('1')
+        with open(flag_loc, "a") as f:
             f.write('\n'+outdir)
         print("Finished all experiments.")

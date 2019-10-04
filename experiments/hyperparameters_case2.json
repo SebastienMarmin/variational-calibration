@@ -2,7 +2,7 @@
   "bin": "python3",
   "executable": "./main.py",
   "n_gpus": 1,
-  "jobs_per_gpu": 5,
+  "jobs_per_gpu": 15,
   "_comments": ["calib_case1","calib_case2","calib_nevada","calib_borehole"],
   "hyperparameters": {
     "dataset_dir": ["~/Datasets/"],
@@ -10,25 +10,25 @@
     "dataset": ["calib_case2"],
     "nlayers_run": [1],
     "nlayers_obs": [1],
-    "nfeatures_run": [50,100],
-    "nfeatures_obs": [50,100],
+    "nfeatures_run": [100],
+    "nfeatures_obs": [100],
     "model": ["kw_jeu22"],
-    "additive": [0,1],
+    "additive": [1],
     "nmc_train": [3],
     "nmc_test": [15],
-    "lr": [5e-4],
-    "lr_calib": [5e-2],
+    "lr": [5e-2],
+    "lr_calib": [5e-1],
     "discrepancy_level": [5e-3],
-    "iterations_fixed_noise": [1000,10000],
+    "iterations_fixed_noise": [1000],
     "iterations_free_noise": [1000],
     "test_interval": [1000],
-    "batch_size_obs": [500],
-    "batch_size_run": [500],
+    "batch_size_obs": [1000],
+    "batch_size_run": [1000],
     "full_cov_W": [0],
     "rff_optim_run": [0],
     "rff_optim_obs": [0],
     "seed": [0],
-    "init_batchsize": [100]
+    "init_batchsize": [1000]
   }
 }
 
