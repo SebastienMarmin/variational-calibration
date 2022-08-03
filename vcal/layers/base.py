@@ -14,7 +14,7 @@ class BaseLayer(torch.nn.Module, abc.ABC):
         self.nmc_train = kwargs.pop('nmc_train') if 'nmc_train' in kwargs else 1
         self.nmc_test = kwargs.pop('nmc_test') if 'nmc_test' in kwargs else 1
         self.dtype = kwargs.pop('dtype') if 'dtype' in kwargs else torch.float32
-        self.nmc = None
+        self.nmc = self.nmc_train
         self.eval()
 
     def kl_divergence(self):

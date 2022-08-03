@@ -8,7 +8,7 @@ from ..kernels import Matern
 import abc
 
 class GaussianProcess(BaseLayer, metaclass=abc.ABCMeta):
-    def __init__(self, in_features, out_features, **kwargs):
+    def __init__(self, in_features, out_features,fix_output_stddev=False, **kwargs):
         super(GaussianProcess, self).__init__(**kwargs)
         self.in_features = in_features
         self.out_features = out_features
@@ -23,6 +23,7 @@ class GaussianProcess(BaseLayer, metaclass=abc.ABCMeta):
 
         self._stddevs = nn.Parameter(torch.ones(out_features)) # can be size 1 or size out_features
         self.cov_structure = Matern(self.in_features,smoothness=np.Inf)
+        self.fix_output_stddev(fix_output_stddev)
 
     @property
     def mean_function(self):
@@ -70,6 +71,9 @@ class GaussianProcess(BaseLayer, metaclass=abc.ABCMeta):
     @stddevs.setter
     def stddevs(self,x):
         self._stddevs.data = x
+
+    def fix_output_stddev(self,b=True):
+        self._stddevs.requires_grad = not b
 
     def fix_hyperparameters(self,b=True):
         self._lengthscales.requires_grad = not b

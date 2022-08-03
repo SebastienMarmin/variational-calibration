@@ -593,36 +593,37 @@ class GaussianMatrix(torch.nn.Module):
 
 
     def set_column_covariances(self,L,index,root):# dxd or dx1 if diagonal or 1x1 if diagonal and homoscedastic
-        scale = self.scale
-        L_diag = L.size(-1)==1
-        if L_diag:
-            s = L.squeeze(-1) if root else L.squeeze(-1).sqrt()
-        if self.all_independent:
-            if not L_diag:
-                v = (L**2).sum(-1) if root else torch.diagonal(L,dim1=-2,dim2=-1)
-                s = v.sqrt()
-            scale[...,:,index] = s
-        elif self.only_row_dep:
+        with torch.no_grad():
+            scale = self.scale
+            L_diag = L.size(-1)==1
             if L_diag:
-                S = torch.diag_embed(s,dim1=-2,dim2=-1)
+                s = L.squeeze(-1) if root else L.squeeze(-1).sqrt()
+            if self.all_independent:
+                if not L_diag:
+                    v = (L**2).sum(-1) if root else torch.diagonal(L,dim1=-2,dim2=-1)
+                    s = v.sqrt()
+                scale[...,:,index] = s
+            elif self.only_row_dep:
+                if L_diag:
+                    S = torch.diag_embed(s,dim1=-2,dim2=-1)
+                else:
+                    S = L if root else torch.cholesky(L,lower=True,transpose=False)
+                index_c = 0 if scale.size(-3)==1 else index
+                scale[...,index_c,:,:] = S
+            elif self.only_col_dep:
+                if not L_diag:
+                    v = (L**2).sum(-1) if root else torch.diagonal(L,dim1=-2,dim2=-1)
+                    s = v.sqrt()
+                if scale.size(-3)==1 and not s.size(-1)==1:# take average variance
+                    s = (s**2).mean(-1).sqrt()
+                scale[...,:,index,index] = s
             else:
-                S = L if root else torch.cholesky(L,lower=True,transpose=False)
-            index_c = 0 if scale.size(-3)==1 else index
-            scale[...,index_c,:,:] = S
-        elif self.only_col_dep:
-            if not L_diag:
-                v = (L**2).sum(-1) if root else torch.diagonal(L,dim1=-2,dim2=-1)
-                s = v.sqrt()
-            if scale.size(-3)==1 and not s.size(-1)==1:# take average variance
-                s = (s**2).mean(-1).sqrt()
-            scale[...,:,index,index] = s
-        else:
-            raise NotImplementedError # TODO
-        try:
-            self.scale = scale.detach()
-        except TypeError:
-            self.scale = torch.nn.Parameter(scale,requires_grad=self.scale.requires_grad)
-        # TODO unify self.scale setting in one method with device handling
+                raise NotImplementedError # TODO
+            try:
+                self.scale = scale.detach()
+            except TypeError:
+                self.scale = torch.nn.Parameter(scale,requires_grad=self.scale.requires_grad)
+            # TODO unify self.scale setting in one method with device handling
 
 
     @property

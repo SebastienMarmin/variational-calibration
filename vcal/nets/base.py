@@ -19,15 +19,15 @@ class BaseNet(torch.nn.Module):
 
     def __init__(self, layers=None):
         super(BaseNet, self).__init__()
-        if issubclass(type(layers),BaseLayer):
-            self.layers = torch.nn.Sequential(layers)
-        elif isinstance(layers, torch.nn.Sequential):
-            self.layers = layers
+        #if issubclass(type(layers),BaseLayer):
+        self.layers = torch.nn.Sequential(*layers)
+        #elif isinstance(layers, torch.nn.Sequential):
+        #self.layers = layers
             
         #  torch.nn.Sequential() of BaseLayer
         # The point is the self.forward() calls list(self.layers)[0].nmc
         # Can be left to None if a child class defines its own forward
-        self.nmc = None
+        self.nmc = list(self.layers)[0].nmc
         self.eval()
 
     def train(self, training_mode=True):
@@ -54,13 +54,13 @@ class BaseNet(torch.nn.Module):
 
     def forward(self, input,input_nmc_rep=True):
         if input_nmc_rep:
-            input_rep = input.expand(torch.Size([self.nmc])+input.size())
-        else:
-            input_rep = input
-        if torch.cuda.is_available() and torch.cuda.device_count() > 1 and input_rep.is_cuda:
-            return torch.nn.parallel.data_parallel(self.layers, inputs=input_rep, dim=1)
-        else:
-            return self.layers(input_rep)
+            inp = input.expand(torch.Size([self.nmc])+input.size())
+        #else:
+        #    inp = input
+        #if torch.cuda.is_available() and torch.cuda.device_count() > 1 and inp.is_cuda:
+        #    return torch.nn.parallel.data_parallel(self.layers, inputs=inp, dim=1)
+        #else:
+        return self.layers(inp)
 
     @property
     def trainable_parameters(self):
