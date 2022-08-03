@@ -29,7 +29,7 @@ def VI_RFF_DGP(X, Y, XX, YY,seed, num_layers = 2, g = 1e-4):
     Outputs
     -------
     mu: predicted mean
-    var: predictied variance
+    var: predicted variance
     
     """
 
