@@ -29,6 +29,7 @@ def VI_RFF_DGP(X, Y, XX, YY,seed, num_layers = 2, g = 1e-4):
     Outputs
     -------
     mu: predicted mean
+    var: predictied variance
     
     """
 
@@ -83,18 +84,6 @@ def VI_RFF_DGP(X, Y, XX, YY,seed, num_layers = 2, g = 1e-4):
 
     model = RegressionNet(layers=layers)
 
-    if False:
-        # take a subset of training data for initialization
-        init_batchsize = 10000
-        npts = len(train_loader.dataset)
-        init_batchsize = min(init_batchsize,npts)
-        init_data,_= random_split(train_loader.dataset,[init_batchsize,npts-init_batchsize])
-        # Prepare the data ("SingleSpace" because in the more general setting of calibration, there is also a "calibration space")
-        dataloader_for_init = SingleSpaceBatchLoader(DataLoader(init_data,batch_size=init_batchsize),cat_inputs=True)
-        # initialize
-        model_initializer=IBLMInitializer(model,dataloader_for_init,noise_var =1*(y.var()).mean().item())
-        model_initializer.initialize()
-
 
     model.likelihood.stddevs = g
     
@@ -104,31 +93,13 @@ def VI_RFF_DGP(X, Y, XX, YY,seed, num_layers = 2, g = 1e-4):
     trainer = TrainerNoCalib( model,
                     optimizer, optimizer_config, train_loader, test_loader, device,
                  seed, tb_logger)
-    print("tout")
-    for p in model.parameters():
-        print(p.shape)
-    print("layer1")
-    for p in model.layers[0].parameters():
-        print(p.shape, end="; requ grad : ")
-        print(p.requires_grad)
-    print("layer2")
-    for p in model.layers[1].parameters():
-        print(p.shape, end="; requ grad : ")
-        print(p.requires_grad)
-    print("likel")
-    for p in model.likelihood.parameters():
-        print(p.shape, end="; requ grad : ")
-        print(p.requires_grad)
-    print("lay1 std requires grad")
-    print(model.layers[-2]._stddevs.requires_grad)
-    print("lay2 std requires grad")
-    print(model.layers[-1]._stddevs.requires_grad)
+    
     trainer.fit(iterations, test_interval, train_log_interval=train_log_interval, time_budget=time_budget)
     model.eval()
     
     samplePaths = mm + model.forward(xx)
     
-    return samplePaths.mean(0).detach().numpy(), samplePaths.std(0).detach().numpy()
+    return samplePaths.mean(0).detach().numpy(), samplePaths.var(0).detach().numpy()
 
 if __name__ == "__main__":
     
