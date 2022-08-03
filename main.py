@@ -43,7 +43,7 @@ def VI_RFF_DGP(X, Y, XX, YY,seed, num_layers = 2, g = 1e-4):
     time_budget = 120
     iterations = 10000    
     nmc_train=10
-    precision = float32 # or "double"
+    precision = float32 
 
     # Visualisation params
     test_interval = 10000
@@ -53,8 +53,7 @@ def VI_RFF_DGP(X, Y, XX, YY,seed, num_layers = 2, g = 1e-4):
     # Start running
     d = X.shape[1]
     dout = 1
-    device = "cpu" # or cpu
-
+    device = "cpu" # or cuda
     # Prepare data
     x = tensor(X).type(precision)
     xx = tensor(XX).type(precision)
