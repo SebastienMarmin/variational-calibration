@@ -45,8 +45,8 @@ def VI_RFF_DGP(X, Y, XX, YY,seed, num_layers = 2, g = 1e-4):
     precision = float32 # or "double"
 
     # Visualisation params
-    test_interval = 1000
-    train_log_interval = 1000
+    test_interval = 10000
+    train_log_interval = 10000
     nmc_test = 100
 
     # Start running
