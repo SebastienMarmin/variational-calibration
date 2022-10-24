@@ -276,8 +276,8 @@ if __name__ == '__main__':
     delta.variances = .05*torch.ones(1)
     eta.lengthscales   = .8*torch.ones(1)
     delta.lengthscales = .1*torch.ones(1)
-    computer_model = RegressionNet(eta)
-    discrepancy    = RegressionNet(delta)
+    computer_model = RegressionNet((eta,))
+    discrepancy    = RegressionNet((delta,))
     computer_model.likelihood.row_stddev = noise_std_run
     discrepancy.likelihood.row_stddev    = noise_std_obs
 
