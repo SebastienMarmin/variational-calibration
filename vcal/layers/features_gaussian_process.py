@@ -119,7 +119,7 @@ class FourierFeaturesGaussianProcess(FeaturesGaussianProcess):
         #return self.Phi_fun(SP)/self.sqrt_nfeatures
         return Phi_fun/self.sqrt_nfeatures
     
-    def fix_hyperparameters(self,b):
+    def fix_hyperparameters(self,b=True):
         super(FourierFeaturesGaussianProcess, self).fix_hyperparameters(b)
         self.Omega.requires_grad = b
 

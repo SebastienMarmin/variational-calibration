@@ -104,8 +104,8 @@ class TrainerNoCalib(abc.ABC):
         return self.model.kl_divergence() * self.kl_decay_config.gamma/(1 + np.exp(self.kl_decay_config.alpha * (
             self.current_iteration - self.kl_decay_config.beta))) #4500 ok
 
-    def compute_loss(self, Y_pred, Y_true, n, m):
-        return self.model.compute_nell(Y_pred, Y_true, n, m) + self.compute_kl()
+    def compute_loss(self, Y_pred, Y_true, n_over_m):
+        return self.model.compute_nell(Y_pred, Y_true, n_over_m) + self.compute_kl()
 
     def compute_error(self, Y_pred: torch.Tensor, Y_true: torch.Tensor) -> torch.Tensor:
         return torch.sqrt(torch.mean(torch.pow((Y_true - Y_pred), 2))
@@ -122,13 +122,13 @@ class TrainerNoCalib(abc.ABC):
             with torch.autograd.detect_anomaly():
                 output = self.model(data)
 
-                loss = self.compute_loss(output, target, len(self.train_dataloader.dataset), data.size(0))
+                loss = self.compute_loss(output, target, len(self.train_dataloader.dataset)/data.size(0))
                 error = self.compute_error(output, target)
                 loss.backward()
         else:
             output = self.model(data)
 
-            loss = self.compute_loss(output, target, len(self.train_dataloader.dataset), data.size(0))
+            loss = self.compute_loss(output, target, len(self.train_dataloader.dataset)/ data.size(0))
             error = self.compute_error(output, target)
             loss.backward()
 
@@ -152,8 +152,7 @@ class TrainerNoCalib(abc.ABC):
 
         self.tb_logger.scalar_summary('loss/train', loss, self.current_iteration)
         self.tb_logger.scalar_summary('loss/train/nll',
-                                      self.model.compute_nell(output, target, len(self.train_dataloader.dataset),
-                                                        data.size(0)), self.current_iteration)
+                                      self.model.compute_nell(output, target, len(self.train_dataloader.dataset)/data.size(0)), self.current_iteration)
         self.tb_logger.scalar_summary('error/train', error, self.current_iteration)
         self.tb_logger.scalar_summary('model/dkl', self.compute_kl(), self.current_iteration)
         
@@ -222,7 +221,7 @@ class TrainerNoCalib(abc.ABC):
             for data, target in self.test_dataloader:
                 data, target = data.to(self.device), target.to(self.device)
                 output = self.model(data)
-                batch_nell = self.model.compute_nell(output, target, 1, 1)
+                batch_nell = self.model.compute_nell(output, target, 1/1)
                 test_nell += batch_nell
                 test_error += self.compute_error(output, target)
 

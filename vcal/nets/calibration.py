@@ -6,13 +6,14 @@ from torch.distributions import kl_divergence
 
 class CalibrationNet(BaseNet,metaclass=ABCMeta):
     def __init__(self,computer_model,discrepancy,calib_prior,calib_posterior,true_calib=None):
-        super(CalibrationNet, self).__init__()
+        super(CalibrationNet, self).__init__(None)
         self.computer_model = computer_model
         self.discrepancy = discrepancy
         self.calib_prior = calib_prior
         self.calib_posterior = calib_posterior
         self.nell_computers = [self.discrepancy.compute_nell,self.computer_model.compute_nell]
         self.true_calib = true_calib
+        self.nmc =  list(self.discrepancy.layers)[0].nmc
         
     @property
     def layers(self):

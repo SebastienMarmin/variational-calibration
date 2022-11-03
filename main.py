@@ -1,4 +1,5 @@
 from os.path import join
+from pkgutil import extend_path
 from torch import tensor, float32, double
 from vcal.nets import RegressionNet
 from vcal.layers import FourierFeaturesGaussianProcess as GP
@@ -37,7 +38,7 @@ def VI_RFF_DGP(X, Y, XX, YY,seed, num_layers = 2, g = 1e-4):
     nfeatures=100
     
     # Training params
-    lr = 0.01
+    lr = 0.02
     optimizer = 'Adam'
     batch_size = 30
     time_budget = 120
@@ -117,10 +118,10 @@ if __name__ == "__main__":
 
         for n in [100, 500, 1000]:
             
-            np.random.seed(seed)
+            #np.random.seed(seed)
                 
             # Load pre-stored training and testing data
-            dataPath = "/mnt/6AA0C6CAA0C69C47/Users/marmin/Downloads/gramacylab-deepgp-ex-1dd8a0b387fb/vecchia/schaffer/data"
+            dataPath = "./data"
             train_name = join(dataPath,"train_d2_n" + str(n) + "_seed" + str(seed) + ".csv")
             test_name  = join(dataPath,"test_d2_seed" + str(seed) + ".csv")
             train = pd.read_csv(train_name)
@@ -139,11 +140,17 @@ if __name__ == "__main__":
                 crps = crps = np.mean(ps.crps_gaussian(YY, mu = mu, sig = np.sqrt(var)))
 
             if save_time:
-                t = pd.read_csv("time.csv")
+                try:
+                    t = pd.read_csv("time.csv")
+                except FileNotFoundError:
+                    t = pd.DataFrame(columns=("Name","N","time"))
                 t.loc[len(t.index)] = [name, n, (toc - tic) / 60]
                 t.to_csv("time.csv", index = False)
-                
-            results = pd.read_csv("results.csv")
+
+            try:
+                results = pd.read_csv("results.csv")
+            except FileNotFoundError:
+                results = pd.DataFrame(columns=("Name","N","seed","RMSE","CRPS"))
             results.loc[len(results.index)] = [name,  n, seed, rmse, crps]
             results.to_csv("results.csv", index = False)
 
