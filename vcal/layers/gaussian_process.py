@@ -49,7 +49,7 @@ class GaussianProcess(BaseLayer, metaclass=abc.ABCMeta):
         try:
             self._means = x
         except TypeError:
-            self._means = torch.nn.Parameter(x,requires_grad=self._mean.requires_grad)
+            self._means = torch.nn.Parameter(x,requires_grad=self._means.requires_grad)
 
     @property
     def variances(self):

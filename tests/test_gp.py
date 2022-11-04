@@ -1,6 +1,9 @@
 #  Copyright (C) 2019   Sébastien Marmin <marmin@eurecom.fr>
 # 	  	       Maurizio Filippone <maurizio.filippone@eurecom.fr>
 
+# example:
+#python test_gp.py --dataset simple2 --dataset_dir ./test_datasets/ --nmc_train 30 --nmc_test 100 --batch_size 100 --lr 1e-2 --iterations_fixed_noise 1000 --iterations_free_noise 0 --model fgp --test_interval 50 --nfeatures 15 --verbose --noise_std 2e-2 --full_cov_W 1
+
 import os, sys
 from os.path import isfile, join
 from os import listdir
@@ -46,15 +49,17 @@ class FourierGaussianProcessNet(vcal.nets.RegressionNet):
         nlayers: int
         nfeatures: int
         """
-        super(FourierGaussianProcessNet, self).__init__()
+        
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.nmc_train = nmc_train
         self.nmc_test = nmc_test
         self.nfearures = nfeatures
 
-        self.layers = torch.nn.ModuleList()
-        self.layers.add_module('f', FourierFeaturesGaussianProcess(input_dim, output_dim,nfeatures=nfeatures,                                                                      nmc_train=nmc_train, nmc_test=nmc_test))
+        #self.layers = torch.nn.ModuleList()
+        #self.layers.add_module('f', FourierFeaturesGaussianProcess(input_dim, output_dim,nfeatures=nfeatures,nmc_train=nmc_train, nmc_test=nmc_test))
+        super(FourierGaussianProcessNet, self).__init__(layers=(FourierFeaturesGaussianProcess(input_dim, output_dim,nfeatures=nfeatures,nmc_train=nmc_train, nmc_test=nmc_test),))
+        #self.nmc = list(self.layers)[0].nmc
         self.name = 'FourierGP'
         self.train()
 
@@ -168,25 +173,25 @@ def setup_dataset():
     return train_dataloader, test_dataloader, input_dim, output_dim
 
 
-def display(model,XX,YY=None,X=None,Y=None,i=0,file_path=None,format="pdf",sample_paths=True):
+def display(model,XX,YY=None,X=None,Y=None,i=0,file_path=None,format="pdf",sample_paths=True,colors=("black","grey")):
     input_dim = XX.shape[1]
     if input_dim==1:
         if YY is not None:
-            plt.plot(XX[:,0].numpy(),YY[:,i].numpy())
+            plt.plot(XX[:,0].numpy(),YY[:,i].numpy(),c="green")
         model.eval()
         with torch.no_grad():
             fw = model(XX)
             nmc_test = fw.shape[0]
             if sample_paths==True:
                 for j in range(nmc_test):
-                    plt.plot(XX[:,0].numpy(),fw[j,:,i].detach().numpy(),c="orange")
+                    plt.plot(XX[:,0].numpy(),fw[j,:,i].detach().numpy(),linewidth=0.1,c="orange")
             fmean = fw[:,:,i].detach().mean(0)
             fsd = fw[:,:,i].detach().var(0).sqrt()
-            plt.plot(XX[:,0].numpy(),fmean.numpy(),c="black")
-            plt.plot(XX[:,0].numpy(),(fmean+2*fsd).numpy(),c="grey")
-            plt.plot(XX[:,0].numpy(),(fmean-2*fsd).numpy(),c="grey")
+            plt.plot(XX[:,0].numpy(),fmean.numpy(),c=colors[0])
+            plt.plot(XX[:,0].numpy(),(fmean+2*fsd).numpy(),c=colors[1])
+            plt.plot(XX[:,0].numpy(),(fmean-2*fsd).numpy(),c=colors[1])
         if X is not None and Y is not None:
-            plt.scatter(X[:,0].numpy(),Y[:,i].numpy(),zorder=10)
+            plt.scatter(X[:,0].numpy(),Y[:,i].numpy(),c="black",zorder=10)
     if file_path is not None:
         matplotlib.pyplot.savefig(file_path)
     
@@ -252,13 +257,14 @@ if __name__ == '__main__':
     X = list(train_dataloader.datasets)[0].tensors[0]
     Y = list(train_dataloader.datasets)[0].tensors[1]
     plt.figure()
-    display(model,XX,YY,X,Y)
+    display(model,XX,None,X,Y,colors=("red","pink"))
     #plt.close()
-    print(model.likelihood.stddevs)
+    plt.title("Red : VI posterior (full covariance !)\n Blue: true posterior from linear algebra")
+    #print(model.likelihood.stddevs)
 
-    print(model.likelihood.variances)
+    #print(model.likelihood.variances)
     gp.set_to_posterior(X,Y.squeeze(-1),noise_covariance=model.likelihood.variances)
-    display(model,XX,YY,X,Y,file_path="test_gp.pdf",sample_paths=False)
+    display(model,XX,None,X,Y,file_path="test_gp.pdf",sample_paths=False,colors=("blue","lightblue"))
 
     logger.info("Testing and saving results...")
     test_mnll, test_error = trainer.test()
